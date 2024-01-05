@@ -184,6 +184,20 @@ SEARCH_OPINION_CHILD_HL_FIELDS = {
     "text.exact": 100,
 }
 
+CITATION_REVERSE_MATCH_LOOK_UP_FIELDS = [
+    "text",
+    "citation",
+    "judge",
+    "caseNameFull",
+    "caseName",
+    "status",
+    "suitNature",
+    "attorney",
+    "procedural_history",
+    "posture",
+    "syllabus",
+]
+
 # Search query for related items
 RELATED_PATTERN = re.compile(
     r"""
