@@ -14,9 +14,7 @@ def get_redirect_or_login_url(request: HttpRequest, field_name: str) -> str:
     """
     url = request.GET.get(field_name, "")
     is_safe = is_safe_url(url, request)
-    if not is_safe:
-        return settings.LOGIN_REDIRECT_URL
-    return url
+    return settings.LOGIN_REDIRECT_URL if not is_safe else url
 
 
 def get_redirect_or_404(request: HttpRequest, field_name: str) -> str:
@@ -27,10 +25,10 @@ def get_redirect_or_404(request: HttpRequest, field_name: str) -> str:
     :return: The URL if it was safe
     """
     url = request.GET.get(field_name, "")
-    is_safe = is_safe_url(url, request)
-    if not is_safe:
+    if is_safe := is_safe_url(url, request):
+        return url
+    else:
         raise Http404(f"Unsafe redirect URL: {url}")
-    return url
 
 
 def is_safe_url(url: str, request: HttpRequest) -> bool:

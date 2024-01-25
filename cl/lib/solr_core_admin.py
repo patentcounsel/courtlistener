@@ -38,10 +38,7 @@ def get_solr_core_status(
     url: str = settings.SOLR_HOST,
 ) -> _ElementTree:
     """Get the status for the solr core as an XML document."""
-    if core == "all":
-        core_query = ""
-    else:
-        core_query = f"&core={core}"
+    core_query = "" if core == "all" else f"&core={core}"
     r = requests.get(
         f"{url}/solr/admin/cores?action=STATUS{core_query}",
         timeout=10,
@@ -77,30 +74,28 @@ def get_term_frequency(
     }
     r = requests.get(f"{url}/solr/admin/luke", params=params, timeout=10)
     content_as_json = json.loads(r.content)
-    if result_type == "list":
-        if len(content_as_json["fields"]) == 0:
-            return []
-        else:
-            top_terms = []
-            for result in content_as_json["fields"]["text"]["topTerms"]:
-                # Top terms is a list of alternating terms and counts. Their
-                # types are different, so we'll use that.
-                if isinstance(result, str):
-                    top_terms.append(result)
-            return top_terms
-    elif result_type == "dict":
+    if result_type == "dict":
         if len(content_as_json["fields"]) == 0:
             return {}
-        else:
-            top_terms_dict = {}
-            for result in content_as_json["fields"]["text"]["topTerms"]:
-                # We set aside the term until we reach its count, then we add
-                # them as a k,v pair
-                if isinstance(result, str):
-                    key = result
-                else:
-                    top_terms_dict[key] = result
-            return top_terms_dict
+        top_terms_dict = {}
+        for result in content_as_json["fields"]["text"]["topTerms"]:
+            # We set aside the term until we reach its count, then we add
+            # them as a k,v pair
+            if isinstance(result, str):
+                key = result
+            else:
+                top_terms_dict[key] = result
+        return top_terms_dict
+    elif result_type == "list":
+        return (
+            []
+            if len(content_as_json["fields"]) == 0
+            else [
+                result
+                for result in content_as_json["fields"]["text"]["topTerms"]
+                if isinstance(result, str)
+            ]
+        )
     else:
         raise ValueError("Unknown output type!")
 

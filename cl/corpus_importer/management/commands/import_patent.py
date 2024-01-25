@@ -31,13 +31,8 @@ def get_dockets(options: dict) -> None:
 
     start = options["skip_until"]
     stop = options["limit"]
-    # Add code to simplify the logic for iterating.
     if stop:
-        if start:
-            stop = start + stop
-        else:
-            stop = 1 + stop
-
+        stop = start + stop if start else 1 + stop
     q = options["queue"]
     throttle = CeleryThrottle(queue_name=q)
     session = PacerSession(username=PACER_USERNAME, password=PACER_PASSWORD)

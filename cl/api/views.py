@@ -42,11 +42,7 @@ def annotate_courts_with_counts(courts, court_count_tuples):
 
     Here we add an attribute to our court objects so they have these values.
     """
-    # Convert the tuple to a dict
-    court_count_dict = {}
-    for court_str, count in court_count_tuples:
-        court_count_dict[court_str] = count
-
+    court_count_dict = dict(court_count_tuples)
     for court in courts:
         court.count = court_count_dict.get(court.pk, 0)
 
@@ -114,14 +110,8 @@ def strip_zero_years(data):
     check for that in our queries. Instead, we truncate any zero-values that
     occur at the end of their stats.
     """
-    start = 0
     end = len(data)
-    # Slice off zeroes at the beginning
-    for i, data_pair in enumerate(data):
-        if data_pair[1] != 0:
-            start = i
-            break
-
+    start = next((i for i, data_pair in enumerate(data) if data_pair[1] != 0), 0)
     # Slice off zeroes at the end
     for i, data_pair in reversed(list(enumerate(data))):
         if data_pair[1] != 0:
@@ -137,10 +127,7 @@ def coverage_data(request, version, court):
     Responds to either AJAX or regular requests.
     """
 
-    if court != "all":
-        court_str = get_object_or_404(Court, pk=court).pk
-    else:
-        court_str = "all"
+    court_str = get_object_or_404(Court, pk=court).pk if court != "all" else "all"
     q = request.GET.get("q")
     with Session() as session:
         si = ExtraSolrInterface(
@@ -179,9 +166,7 @@ def fetch_first_last_date_filed(
         "date_filed"
     )
     first, last = query.first(), query.last()
-    if first:
-        return first.date_filed, last.date_filed
-    return None, None
+    return (first.date_filed, last.date_filed) if first else (None, None)
 
 
 @cache_page(7 * 60 * 60 * 24, key_prefix="coverage")

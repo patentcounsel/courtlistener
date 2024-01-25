@@ -35,8 +35,7 @@ def file_generator(dir_path, random_order=False, limit=None):
     else:
         for root, dir_names, file_names in os.walk(dir_path):
             shuffle(dir_names)
-            names = fnmatch.filter(file_names, "*.xml")
-            if names:
+            if names := fnmatch.filter(file_names, "*.xml"):
                 shuffle(names)
                 yield os.path.join(root, names[0]).replace("\\", "/")
                 break
@@ -107,8 +106,8 @@ def clean_string(s):
     # We split on the v., and handle fixes at either end of plaintiff or
     # appellant.
     bad_punctuation = r"(-|–|_|/|;|,|\s)*"
-    bad_endings = re.compile(r"%s$" % bad_punctuation)
-    bad_beginnings = re.compile(r"^%s" % bad_punctuation)
+    bad_endings = re.compile(f"{bad_punctuation}$")
+    bad_beginnings = re.compile(f"^{bad_punctuation}")
 
     s = s.split(" v. ")
     cleaned_string = []
@@ -118,10 +117,7 @@ def clean_string(s):
         cleaned_string.append(frag)
     s = " v. ".join(cleaned_string)
 
-    # get rid of '\t\n\x0b\x0c\r ', and replace them with a single space.
-    s = " ".join(s.split())
-
-    return s
+    return " ".join(s.split())
 
 
 # For use in harmonize function
@@ -147,17 +143,17 @@ SMALL = r"a|an|and|as|at|but|by|en|for|if|in|is|of|on|or|the|to|v\.?|via|vs\.?"
 NUMS = "0123456789"
 PUNCT = r"""!"#$¢%&'‘()*+,\-./:;?@[\\\]_—`{|}~"""
 WEIRD_CHARS = r"¼½¾§ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÕÖØÙÚÛÜßàáâãäåæçèéêëìíîïñòóôœõöøùúûüÿ"
-BIG_WORDS = re.compile(r"^(%s)[%s]?$" % (BIG, PUNCT), re.I)
-SMALL_WORDS = re.compile(r"^(%s)$" % SMALL, re.I)
+BIG_WORDS = re.compile(f"^({BIG})[{PUNCT}]?$", re.I)
+SMALL_WORDS = re.compile(f"^({SMALL})$", re.I)
 SMALL_WORD_INLINE = re.compile(r"(^|\s)(%s)(\s|$)" % SMALL, re.I)
 INLINE_PERIOD = re.compile(r"[a-z][.][a-z]", re.I)
 INLINE_SLASH = re.compile(r"[a-z][/][a-z]", re.I)
 INLINE_AMPERSAND = re.compile(r"([a-z][&][a-z])(.*)", re.I)
-UC_ELSEWHERE = re.compile(r"[%s]*?[a-zA-Z]+[A-Z]+?" % PUNCT)
-CAPFIRST = re.compile(r"^[%s]*?([A-Za-z])" % PUNCT)
+UC_ELSEWHERE = re.compile(f"[{PUNCT}]*?[a-zA-Z]+[A-Z]+?")
+CAPFIRST = re.compile(f"^[{PUNCT}]*?([A-Za-z])")
 SMALL_FIRST = re.compile(r"^([%s]*)(%s)\b" % (PUNCT, SMALL), re.I)
 SMALL_LAST = re.compile(r"\b(%s)[%s]?$" % (SMALL, PUNCT), re.I)
-SUBPHRASE = re.compile(r"([:;?!][ ])(%s)" % SMALL)
+SUBPHRASE = re.compile(f"([:;?!][ ])({SMALL})")
 APOS_SECOND = re.compile(r"^[dol]{1}['‘]{1}[a-z]+$", re.I)
 ALL_CAPS = re.compile(r"^[A-Z\s%s%s%s]+$" % (PUNCT, WEIRD_CHARS, NUMS))
 UC_INITIALS = re.compile(r"^(?:[A-Z]{1}\.{1}|[A-Z]{1}\.{1}[A-Z]{1})+,?$")
@@ -212,16 +208,13 @@ def titlecase(text, DEBUG=False):
                 # O'Reiley, L'Oreal, D'Angelo
                 if DEBUG:
                     print(f"  APOS_SECOND matched. Fixing it: {word}")
-                word = word[0:3].upper() + word[3:]
+                word = word[:3].upper() + word[3:]
                 tc_line.append(word)
                 continue
 
             if INLINE_PERIOD.search(word):
                 if DEBUG:
-                    print(
-                        "  INLINE_PERIOD matched. Uppercasing if == 1 char: "
-                        + word
-                    )
+                    print(f"  INLINE_PERIOD matched. Uppercasing if == 1 char: {word}")
                 parts = word.split(".")
                 new_parts = []
                 for part in parts:
@@ -238,10 +231,7 @@ def titlecase(text, DEBUG=False):
             if INLINE_SLASH.search(word):
                 # This repeats INLINE_PERIOD. Could be more elegant.
                 if DEBUG:
-                    print(
-                        "  INLINE_SLASH matched. Uppercasing if == 1 char: "
-                        + word
-                    )
+                    print(f"  INLINE_SLASH matched. Uppercasing if == 1 char: {word}")
                 parts = word.split("/")
                 new_parts = []
                 for part in parts:
@@ -255,8 +245,7 @@ def titlecase(text, DEBUG=False):
                 tc_line.append(word)
                 continue
 
-            amp_match = INLINE_AMPERSAND.match(word)
-            if amp_match:
+            if amp_match := INLINE_AMPERSAND.match(word):
                 if DEBUG:
                     print(f"  INLINE_AMPERSAND matched. Uppercasing: {word}")
                 tc_line.append(
@@ -291,11 +280,10 @@ def titlecase(text, DEBUG=False):
                 )
                 continue
 
-            hyphenated = []
-            for item in word.split("-"):
-                hyphenated.append(
-                    CAPFIRST.sub(lambda m: m.group(0).upper(), item)
-                )
+            hyphenated = [
+                CAPFIRST.sub(lambda m: m.group(0).upper(), item)
+                for item in word.split("-")
+            ]
             tc_line.append("-".join(hyphenated))
 
         result = " ".join(tc_line)
@@ -356,8 +344,7 @@ def harmonize(text):
 
     # split on all ' v. ' and then deal with United States variations.
     text = text.split(" v. ")
-    i = 1
-    for frag in text:
+    for i, frag in enumerate(text, start=1):
         frag = frag.strip()
         if UNITED_STATES.match(frag):
             result += "United States"
@@ -373,8 +360,6 @@ def harmonize(text):
         if i < len(text):
             # More stuff coming; append v.
             result += " v. "
-        i += 1
-
     # Remove the ET_AL words.
     result = re.sub(ET_AL, "", result)
 
@@ -500,10 +485,9 @@ def parse_file(file_path, court_fallback=""):
         # if there are remaining texts without bylines, either add them to the last opinion of this type, or if there
         # are none, make a new opinion without an author
         if last_texts:
-            relevant_opinions = [
+            if relevant_opinions := [
                 o for o in info["opinions"] if o["type"] == current_type
-            ]
-            if relevant_opinions:
+            ]:
                 relevant_opinions[-1]["opinion"] += "\n%s" % "\n".join(
                     last_texts
                 )
@@ -519,13 +503,13 @@ def parse_file(file_path, court_fallback=""):
                         "byline": "",
                     }
                 )
+    first_chunk = 1000
     # check if opinions were heard per curiam by checking if the first chunk of text in the byline or in
     #  any of its associated opinion texts indicate this
     for opinion in info["opinions"]:
         # if there's already an identified author, it's not per curiam
         # otherwise, search through chunks of text for the phrase 'per curiam'
         per_curiam = False
-        first_chunk = 1000
         if "per curiam" in opinion["byline"][:first_chunk].lower():
             per_curiam = True
         else:
@@ -547,11 +531,9 @@ def get_text(file_path):
     """
     with open(file_path, "r") as f:
         file_string = f.read()
-    raw_info = {}
     # used when associating a byline of an opinion with the opinion's text
     current_byline = {"type": None, "name": None}
-    # if this is an unpublished opinion, note this down and remove all <unpublished> tags
-    raw_info["unpublished"] = False
+    raw_info = {"unpublished": False}
     if "<opinion unpublished=true>" in file_string:
         file_string = file_string.replace(
             "<opinion unpublished=true>", "<opinion>"
@@ -656,9 +638,7 @@ def parse_dates(raw_dates, caseyear):
                 text = months.split(raw_part.lower())[0].strip()
             # remove footnotes and non-alphanumeric characters
             text = re.sub(r"(\[fn.?\])", "", text)
-            text = re.sub(r"[^A-Za-z ]", "", text).strip()
-            # if we ended up getting some text, add it, else ignore it
-            if text:
+            if text := re.sub(r"[^A-Za-z ]", "", text).strip():
                 inner_dates.append((clean_string(text), date))
             else:
                 inner_dates.append((None, date))

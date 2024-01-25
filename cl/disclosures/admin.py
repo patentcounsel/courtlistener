@@ -54,9 +54,7 @@ class InvestmentAdmin(CursorPaginatorAdmin):
     readonly_fields = ["page_link"]
 
     def description_or_blank(self, obj):
-        if len(obj.description):
-            return obj.description
-        return "[Blank]"
+        return obj.description if len(obj.description) else "[Blank]"
 
     def page_link(self, obj):
         return mark_safe(

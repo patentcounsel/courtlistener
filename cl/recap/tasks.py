@@ -430,16 +430,13 @@ async def process_recap_zip(pk: int) -> dict[str, list[int] | list[Task]]:
                     continue
                 await mark_pq_status(
                     pq,
-                    "Zip too large; possible zip bomb. File in zip named %s "
-                    "would be %s bytes expanded."
-                    % (zip_info.filename, zip_info.file_size),
+                    f"Zip too large; possible zip bomb. File in zip named {zip_info.filename} would be {zip_info.file_size} bytes expanded.",
                     PROCESSING_STATUS.INVALID_CONTENT,
                 )
                 return {"new_pqs": [], "tasks": []}
 
-            # For each document in the zip, create a new PQ
-            new_pqs = []
             tasks = []
+            new_pqs = []
             for file_name in archive.namelist():
                 file_content = archive.read(file_name)
                 f = SimpleUploadedFile(file_name, file_content)
@@ -453,13 +450,7 @@ async def process_recap_zip(pk: int) -> dict[str, list[int] | list[Task]]:
                     doc_num = file_name
                     att_num = None
 
-                if att_num:
-                    # An attachment, ∴ nuke the pacer_doc_id value, since it
-                    # corresponds to the main doc only.
-                    pacer_doc_id = ""
-                else:
-                    pacer_doc_id = pq.pacer_doc_id
-
+                pacer_doc_id = "" if att_num else pq.pacer_doc_id
                 # Create a new PQ and enqueue it for processing
                 new_pq = await ProcessingQueue.objects.acreate(
                     court_id=pq.court_id,
@@ -577,8 +568,7 @@ async def process_recap_docket(pk):
         await sync_to_async(index_docket_parties_in_es.delay)(d.pk)
     await process_orphan_documents(rds_created, pq.court_id, d.date_filed)
     if content_updated:
-        newly_enqueued = enqueue_docket_alert(d.pk)
-        if newly_enqueued:
+        if newly_enqueued := enqueue_docket_alert(d.pk):
             await sync_to_async(send_alert_and_webhook.delay)(d.pk, start_time)
     await mark_pq_successful(pq, d_id=d.pk)
     return {
@@ -857,8 +847,7 @@ async def process_recap_docket_history_report(pk):
     )
     await process_orphan_documents(rds_created, pq.court_id, d.date_filed)
     if content_updated:
-        newly_enqueued = enqueue_docket_alert(d.pk)
-        if newly_enqueued:
+        if newly_enqueued := enqueue_docket_alert(d.pk):
             await sync_to_async(send_alert_and_webhook.delay)(d.pk, start_time)
     await mark_pq_successful(pq, d_id=d.pk)
     return {
@@ -1063,8 +1052,7 @@ async def process_recap_appellate_docket(pk):
         await sync_to_async(index_docket_parties_in_es.delay)(d.pk)
     await process_orphan_documents(rds_created, pq.court_id, d.date_filed)
     if content_updated:
-        newly_enqueued = enqueue_docket_alert(d.pk)
-        if newly_enqueued:
+        if newly_enqueued := enqueue_docket_alert(d.pk):
             await sync_to_async(send_alert_and_webhook.delay)(d.pk, start_time)
     await mark_pq_successful(pq, d_id=d.pk)
     return {
@@ -1261,13 +1249,11 @@ def do_heuristic_match(idb_row, ds):
     for d in ds:
         case_name = harmonize(d.case_name)
         parts = case_name.lower().split(" v. ")
-        if len(parts) == 1:
+        if len(parts) == 1 or len(parts) != 2 and len(parts) > 2:
             case_names.append(case_name)
         elif len(parts) == 2:
             plaintiff, defendant = parts[0], parts[1]
-            case_names.append(f"{plaintiff[0:30]} v. {defendant[0:30]}")
-        elif len(parts) > 2:
-            case_names.append(case_name)
+            case_names.append(f"{plaintiff[:30]} v. {defendant[:30]}")
     idb_case_name = harmonize(f"{idb_row.plaintiff} v. {idb_row.defendant}")
     results = find_best_match(case_names, idb_case_name, case_sensitive=False)
     if results["ratio"] > 0.65:
@@ -1445,9 +1431,7 @@ def fetch_pacer_doc_by_rd(
 
     court_id = rd.docket_entry.docket.court_id
 
-    pdf_bytes = None
-    if r:
-        pdf_bytes = r.content
+    pdf_bytes = r.content if r else None
     success, msg = update_rd_metadata(
         self,
         rd_pk,
@@ -1760,8 +1744,7 @@ def fetch_docket(self, fq_pk):
     content_updated = result["content_updated"]
     d_pk = result["docket_pk"]
     if content_updated:
-        newly_enqueued = enqueue_docket_alert(d_pk)
-        if newly_enqueued:
+        if newly_enqueued := enqueue_docket_alert(d_pk):
             send_alert_and_webhook(d_pk, start_time)
     return result
 
@@ -1800,13 +1783,11 @@ def get_recap_email_recipients(
     :return: List of recap.email addresses
     """
 
-    # Select only @recap.email addresses
-    recap_email_recipients = [
+    return [
         recap_email.lower()
         for recap_email in email_recipients
         if "@recap.email" in recap_email
     ]
-    return recap_email_recipients
 
 
 def get_attachment_page_by_url(att_page_url: str, court_id: str) -> str | None:
@@ -2086,16 +2067,15 @@ def open_and_validate_email_notification(
         with bucket.open(message_id, "rb") as f:
             body = f.read().decode("iso-8859-1")
     except FileNotFoundError as exc:
-        if self.request.retries == self.max_retries:
-            msg = "File not found."
-            async_to_sync(mark_pq_status)(
-                epq, msg, PROCESSING_STATUS.FAILED, "status_message"
-            )
-            return None, ""
-        else:
+        if self.request.retries != self.max_retries:
             # Do a retry. Hopefully the file will be in place soon.
             raise self.retry(exc=exc)
 
+        msg = "File not found."
+        async_to_sync(mark_pq_status)(
+            epq, msg, PROCESSING_STATUS.FAILED, "status_message"
+        )
+        return None, ""
     report = S3NotificationEmail(map_cl_to_pacer_id(epq.court_id))
     report._parse_text(body)
     data = report.data
@@ -2246,11 +2226,9 @@ def process_recap_email(
         appellate,
     )
     if appellate:
-        # Get the document number for appellate documents.
-        appellate_doc_num = get_document_number_for_appellate(
+        if appellate_doc_num := get_document_number_for_appellate(
             epq.court_id, pacer_doc_id, pq
-        )
-        if appellate_doc_num:
+        ):
             data["dockets"][0]["docket_entries"][0][
                 "document_number"
             ] = appellate_doc_num
@@ -2328,8 +2306,9 @@ def process_recap_email(
     all_main_rds = []
     for docket_updated in dockets_updated:
         if docket_updated.content_updated:
-            newly_enqueued = enqueue_docket_alert(docket_updated.docket.pk)
-            if newly_enqueued:
+            if newly_enqueued := enqueue_docket_alert(
+                docket_updated.docket.pk
+            ):
                 send_alert_and_webhook.delay(
                     docket_updated.docket.pk,
                     start_time,

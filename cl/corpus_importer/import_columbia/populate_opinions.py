@@ -338,8 +338,12 @@ def make_and_save(
     # get citation objects in a list for addition to the cluster
     found_citations = []
     for c in item["citations"]:
-        found = get_citations(clean_text(c, ["html", "inline_whitespace"]))
-        if not found:
+        if found := get_citations(
+            clean_text(c, ["html", "inline_whitespace"])
+        ):
+            found_citations.extend(found.to_model())
+
+        else:
             # if the docket number --is-- citation string, we're likely dealing
             # with a somewhat common triplet of (docket number, date,
             # jurisdiction), which isn't a citation at all (so there's no
@@ -368,17 +372,11 @@ def make_and_save(
 
             # if there is a string that's known to indicate
             # a bad citation, then it's not a citation
-            if any(bad in c for bad in BAD_CITES):
-                continue
-            # otherwise, this is a problem
-            raise Exception(
-                "Failed to get a citation from the string '%s' in "
-                "court '%s' with docket '%s'."
-                % (c, item["court_id"], item["docket"])
-            )
-        else:
-            found_citations.extend(found.to_model())
-
+            if all(bad not in c for bad in BAD_CITES):
+                            # otherwise, this is a problem
+                raise Exception(
+                    f"""Failed to get a citation from the string '{c}' in court '{item["court_id"]}' with docket '{item["docket"]}'."""
+                )
     cluster = OpinionCluster(
         judges=item.get("judges", "") or "",
         precedential_status=(
@@ -427,9 +425,7 @@ def make_and_save(
         opinions.append((opinion, joined_by))
 
     if min_dates is None:
-        # check to see if this is a duplicate
-        dups = find_dups(docket, cluster)
-        if dups:
+        if dups := find_dups(docket, cluster):
             if skipdupes:
                 print("Duplicate. skipping.")
             else:
@@ -479,8 +475,7 @@ def find_dups(docket, cluster):
     params = {
         "fq": [
             f"court_id:{docket.court_id}",
-            "citation:(%s)"
-            % " OR ".join(f'"{c}"~5' for c in cluster.citations.all() if c),
+            f"""citation:({" OR ".join(f'"{c}"~5' for c in cluster.citations.all() if c)})""",
         ],
         "rows": 100,
         "caller": "corpus_importer.import_columbia.populate_opinions",
@@ -500,12 +495,7 @@ def find_dups(docket, cluster):
                 continue
             if get_case_name_words(r["caseName"]) == base_words:
                 remaining.append(r)
-        if remaining:
-            # we successfully narrowed down the results
-            return remaining
-        # failed to narrow down results, so we just return the cases that match
-        # citations
-        return results
+        return remaining if remaining else results
     return []
 
 
@@ -546,8 +536,7 @@ def get_case_name_words(case_name):
             ).group(1)
         except TypeError:
             subject = ""
-        good_words = get_good_words(subject.split())
-        if good_words:
+        if good_words := get_good_words(subject.split()):
             filtered_words.append(good_words[0])
     else:
         filtered_words = get_good_words(all_words)

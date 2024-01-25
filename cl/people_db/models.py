@@ -439,7 +439,7 @@ class School(AbstractDateTimeModel):
 
     @property
     def is_alias(self):
-        return True if self.is_alias_of is not None else False
+        return self.is_alias_of is not None
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -1002,16 +1002,12 @@ class Position(AbstractDateTimeModel):
     @property
     def is_judicial_position(self):
         """Return True if the position is judicial."""
-        if self.POSITION_TYPE_GROUPS.get(self.position_type) == "Judge":
-            return True
-        return False
+        return self.POSITION_TYPE_GROUPS.get(self.position_type) == "Judge"
 
     @property
     def is_clerkship(self):
         """Return True if the position is a clerkship."""
-        if self.POSITION_TYPE_GROUPS.get(self.position_type) == "Clerkships":
-            return True
-        return False
+        return self.POSITION_TYPE_GROUPS.get(self.position_type) == "Clerkships"
 
     @property
     def vote_string(self):
@@ -1030,10 +1026,7 @@ class Position(AbstractDateTimeModel):
         if self.votes_yes or self.votes_yes_percent:
             s += ", "
         if self.votes_yes:
-            s += '%s in favor <span class="alt">and</span> %s ' "opposed" % (
-                self.votes_yes,
-                self.votes_no,
-            )
+            s += f'{self.votes_yes} in favor <span class="alt">and</span> {self.votes_no} opposed'
         elif self.votes_yes_percent:
             s += (
                 '%g%% in favor <span class="alt">and</span> '
@@ -1070,11 +1063,7 @@ class Position(AbstractDateTimeModel):
             else:
                 # If we don't know when the position ended, we use a ? if the
                 # person has died, or say Present if they're alive.
-                if self.person.date_dod:
-                    end_date = "?"
-                else:
-                    end_date = "Present"
-
+                end_date = "?" if self.person.date_dod else "Present"
             s += ' <span class="text-capitalize">(%s &ndash; %s)' % (
                 granular_date(self, "date_start", default="Unknown Date"),
                 end_date,
@@ -1232,12 +1221,7 @@ class Education(AbstractDateTimeModel):
     )
 
     def __str__(self) -> str:
-        return "%s: Degree in %s from %s in the year %s" % (
-            self.pk,
-            self.degree_detail,
-            self.school.name,
-            self.degree_year,
-        )
+        return f"{self.pk}: Degree in {self.degree_detail} from {self.school.name} in the year {self.degree_year}"
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -1465,12 +1449,7 @@ class PartyType(models.Model):
         unique_together = ("docket", "party", "name")
 
     def __str__(self) -> str:
-        return "%s: Party %s is %s in Docket %s" % (
-            self.pk,
-            self.party_id,
-            self.name,
-            self.docket_id,
-        )
+        return f"{self.pk}: Party {self.party_id} is {self.name} in Docket {self.docket_id}"
 
 
 class CriminalCount(models.Model):
@@ -1634,13 +1613,7 @@ class Role(models.Model):
         )
 
     def __str__(self) -> str:
-        return "%s: Attorney %s is %s for Party %s in docket %s" % (
-            self.pk,
-            self.attorney_id,
-            self.get_role_display(),
-            self.party_id,
-            self.docket_id,
-        )
+        return f"{self.pk}: Attorney {self.attorney_id} is {self.get_role_display()} for Party {self.party_id} in docket {self.docket_id}"
 
 
 class Attorney(AbstractDateTimeModel):
@@ -1709,12 +1682,7 @@ class AttorneyOrganizationAssociation(models.Model):
         unique_together = ("attorney", "attorney_organization", "docket")
 
     def __str__(self) -> str:
-        return "%s: Atty %s worked on docket %s while at org %s" % (
-            self.pk,
-            self.attorney_id,
-            self.docket_id,
-            self.attorney_organization_id,
-        )
+        return f"{self.pk}: Atty {self.attorney_id} worked on docket {self.docket_id} while at org {self.attorney_organization_id}"
 
 
 class AttorneyOrganization(AbstractDateTimeModel):
@@ -1761,12 +1729,4 @@ class AttorneyOrganization(AbstractDateTimeModel):
         )
 
     def __str__(self) -> str:
-        return "%s: %s, %s, %s, %s, %s, %s" % (
-            self.pk,
-            self.name,
-            self.address1,
-            self.address2,
-            self.city,
-            self.state,
-            self.zip_code,
-        )
+        return f"{self.pk}: {self.name}, {self.address1}, {self.address2}, {self.city}, {self.state}, {self.zip_code}"

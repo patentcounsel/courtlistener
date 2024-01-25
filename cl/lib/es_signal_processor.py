@@ -276,7 +276,7 @@ def update_remove_m2m_documents(
     relationships with the instance.
     :return: None
     """
-    for key, fields_map in mapping_fields.items():
+    for key in mapping_fields:
         if main_model.__name__.lower() != key:  # type: ignore
             # The m2m relationship is not defined in the main model but
             # we use the relationship to add data to the ES documents.
@@ -490,13 +490,10 @@ def allow_es_audio_indexing(
     :return: True if indexing should be avoided, False otherwise.
     """
 
-    if type(instance) == Audio and (
-        update_fields and "processing_complete" in update_fields
-    ):
-        # Allow indexing Audio instances for which 'processing_complete' is
-        # present in update_fields.
-        return True
-    return False
+    return bool(
+        type(instance) == Audio
+        and (update_fields and "processing_complete" in update_fields)
+    )
 
 
 def remove_non_judge_person_and_positions_from_index(
@@ -683,7 +680,7 @@ class ESSignalProcessor:
     @elasticsearch_enabled
     def handle_m2m(self, sender, instance=None, action=None, **kwargs):
         """Receiver function that gets called after a m2m relation is modified"""
-        if action == "post_add" or action == "post_remove":
+        if action in ["post_add", "post_remove"]:
             mapping_fields = self.documents_model_mapping["m2m"][sender]
             for key, fields_map in mapping_fields.items():
                 affected_field = list(fields_map.keys())[0]

@@ -517,8 +517,8 @@ class IAUploaderTest(TestCase):
         j = json.loads(j_str)
         parties = j["parties"]
         first_party = parties[0]
-        first_party_attorneys = first_party["attorneys"]
         expected_num_attorneys = 1
+        first_party_attorneys = first_party["attorneys"]
         actual_num_attorneys = len(first_party_attorneys)
         self.assertEqual(
             expected_num_attorneys,
@@ -539,8 +539,7 @@ class IAUploaderTest(TestCase):
         self.assertEqual(
             actual_num_roles,
             expected_num_roles,
-            msg="Got wrong number of roles on attorneys when making IA JSON. "
-            "Got %s, expected %s" % (actual_num_roles, expected_num_roles),
+            msg=f"Got wrong number of roles on attorneys when making IA JSON. Got {actual_num_roles}, expected {expected_num_roles}",
         )
 
     def test_num_queries_ok(self) -> None:
@@ -610,12 +609,11 @@ class HarvardTests(TestCase):
         :return: First citation found
         """
         cites = eyecite.get_citations(case_law["citations"][0]["cite"])
-        cite = Citation.objects.get(
+        return Citation.objects.get(
             volume=cites[0].groups["volume"],
             reporter=cites[0].groups["reporter"],
             page=cites[0].groups["page"],
         )
-        return cite
 
     def assertSuccessfulParse(self, expected_count_diff, bankruptcy=False):
         pre_install_count = OpinionCluster.objects.all().count()

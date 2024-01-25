@@ -89,7 +89,7 @@ def compute_parenthetical_groups(
     :param parentheticals: A list of parentheticals to organize into groups
     :return: A list of ComputedParentheticalGroup's containing the given parentheticals
     """
-    if len(parentheticals) == 0:
+    if not parentheticals:
         return []
 
     similarity_index = deepcopy(_EMPTY_SIMILARITY_INDEX)
@@ -145,9 +145,10 @@ def get_similarity_graph(
     are parenthetical IDs and the neighbors/values are the other parentheticals
     above the defined similarity threshold.
     """
-    similarity_graph: Graph = {}
-    for par_key, mhash in parenthetical_minhashes.items():
-        similarity_graph[par_key] = similarity_index.query(mhash)
+    similarity_graph: Graph = {
+        par_key: similarity_index.query(mhash)
+        for par_key, mhash in parenthetical_minhashes.items()
+    }
     return similarity_graph
 
 
@@ -208,13 +209,12 @@ def get_group_from_component(
     representative = get_representative_parenthetical(
         pars_in_group, similarity_graph
     )
-    parenthetical_group = ComputedParentheticalGroup(
+    return ComputedParentheticalGroup(
         parentheticals=pars_in_group,
         representative=representative,
         size=len(pars_in_group),
         score=group_score,
     )
-    return parenthetical_group
 
 
 BEST_PARENTHETICAL_SEARCH_THRESHOLD = 0.2
@@ -255,7 +255,7 @@ def get_parenthetical_tokens(text: str) -> List[str]:
     # Split text into tokens and remove stop words (e.g. "that", "and", "of")
     tokens = [word for word in cleaned_text.split() if word not in STOP_WORDS]
     # Treat "holding", "recognizing" etc. at first position as a stop word
-    if len(tokens) > 0 and GERUND_WORD.match(tokens[0]):
+    if tokens and GERUND_WORD.match(tokens[0]):
         del tokens[0]
     tokens = stemmer.stemWords(tokens)
     return tokens

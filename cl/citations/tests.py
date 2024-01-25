@@ -740,10 +740,7 @@ class CitationObjectTest(IndexedSolrTestCase):
         opinion5 = Opinion.objects.get(cluster__pk=self.citation5.cluster_id)
 
         citing = opinion5
-        find_citations_and_parentheticals_for_opinion_by_pks.delay(
-            [opinion5.pk]
-        )
-
+        find_citations_and_parentheticals_for_opinion_by_pks.delay([citing.pk])
         citation_test_pairs = [
             (opinion1, 3),
             (opinion2, 6),
@@ -1294,10 +1291,10 @@ class DescriptionScoreTest(SimpleTestCase):
     def _print_failed_cases(
         self, failed_cases: List[DescriptionUtilityTestCase]
     ) -> str:
-        output = ""
-        for case in failed_cases:
-            output += f"\nDescription 0: {case[0]}\nDescription 1: {case[1]}\nExpected Winner: {case[2]}\n"
-        return output
+        return "".join(
+            f"\nDescription 0: {case[0]}\nDescription 1: {case[1]}\nExpected Winner: {case[2]}\n"
+            for case in failed_cases
+        )
 
 
 @dataclass(frozen=True)
@@ -1433,10 +1430,8 @@ class GroupParentheticalsTest(SimpleTestCase):
                 # comes up with the same groupings when we pass it the flat list
                 flat = list(itertools.chain.from_iterable(groups))
                 output_groups = compute_parenthetical_groups(flat)
-                output_sets = frozenset(
-                    [frozenset(pg.parentheticals) for pg in output_groups]
-                )
-                input_sets = frozenset([frozenset(g) for g in groups])
+                output_sets = frozenset(frozenset(pg.parentheticals) for pg in output_groups)
+                input_sets = frozenset(frozenset(g) for g in groups)
                 self.assertEqual(
                     input_sets,
                     output_sets,
@@ -1477,9 +1472,9 @@ class GroupParentheticalsTest(SimpleTestCase):
         #   correct representative parenthetical
         #  )
         test_pairs = [
-            ((parentheticals[0:3], simgraph), parentheticals[0]),
-            ((parentheticals[0:6], simgraph), parentheticals[1]),
-            ((parentheticals[0:1], simgraph), parentheticals[0]),
+            ((parentheticals[:3], simgraph), parentheticals[0]),
+            ((parentheticals[:6], simgraph), parentheticals[1]),
+            ((parentheticals[:1], simgraph), parentheticals[0]),
             ((parentheticals[7:], simgraph), parentheticals[7]),
         ]
 

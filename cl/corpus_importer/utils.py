@@ -117,7 +117,7 @@ def get_start_of_quarter(d: Optional[date] = None) -> date:
         date(d_year, 7, 1),
         date(d_year, 10, 1),
     ]
-    return max([q for q in quarter_dates if q <= d])
+    return max(q for q in quarter_dates if q <= d)
 
 
 def make_subset_range(cl_characters: str, max_string: str) -> list[int]:
@@ -207,10 +207,7 @@ def compare_documents(file_characters: str, cl_characters: str) -> int:
     for overlap in filtered_subset:
         count += len(overlap)
 
-    percent_match = int(
-        100 * (count / min([len(file_characters), len(cl_characters)]))
-    )
-    return percent_match
+    return int(100 * (count / min([len(file_characters), len(cl_characters)])))
 
 
 def similarity_scores(
@@ -237,11 +234,9 @@ def similarity_scores(
         texts_to_compare_1 + texts_to_compare_2
     )
 
-    # Calculate cosine similarity between weight of words for each text in list
-    scores = cosine_similarity(
+    return cosine_similarity(
         X[: len(texts_to_compare_1)], X[len(texts_to_compare_1) :]
     )
-    return scores
 
 
 def match_opinion_lists(
@@ -333,28 +328,26 @@ def merge_docket_numbers(
     cl_docket = cluster.docket
     file_cleaned_docket = clean_docket_number(docket_number)
 
-    if cl_docket.docket_number:
-        # Check if docket number exists
-        # e.g. CL docket id #3952066 doesn't have
-        cl_clean_docket = clean_docket_number(cl_docket.docket_number)
-        if (
-            cl_clean_docket in file_cleaned_docket
-            and cl_docket.docket_number != file_cleaned_docket
-        ):
-            return file_cleaned_docket
-        else:
-            # Check if their relatively similar and if so save the one from file
-            # if its longer
-            similarity = get_cosine_similarity(
-                cl_clean_docket, file_cleaned_docket
-            )
-            if similarity > 0.8:
-                if len(file_cleaned_docket) > len(cl_clean_docket):
-                    return file_cleaned_docket
-    else:
+    if not cl_docket.docket_number:
         # CL docket doesn't have a docket number, add the one from  file
         return file_cleaned_docket
 
+    # Check if docket number exists
+    # e.g. CL docket id #3952066 doesn't have
+    cl_clean_docket = clean_docket_number(cl_docket.docket_number)
+    if (
+            cl_clean_docket in file_cleaned_docket
+            and cl_docket.docket_number != file_cleaned_docket
+        ):
+        return file_cleaned_docket
+    # Check if their relatively similar and if so save the one from file
+    # if its longer
+    similarity = get_cosine_similarity(
+        cl_clean_docket, file_cleaned_docket
+    )
+    if similarity > 0.8:
+        if len(file_cleaned_docket) > len(cl_clean_docket):
+            return file_cleaned_docket
     return None
 
 
@@ -379,35 +372,31 @@ def merge_case_names(
 
     update_dict = {}
     # Case with full case names
-    if not cluster_case_name_full and file_case_name_full:
+    if (
+        (cluster_case_name_full or not file_case_name_full)
+        and cluster_case_name_full
+        and file_case_name_full
+        and len(file_case_name_full) > len(cluster_case_name_full)
+        or not cluster_case_name_full
+        and file_case_name_full
+    ):
+        # Select best case name based on string length
         update_dict["case_name_full"] = file_case_name_full
         # Change stored value to new
         cluster_case_name_full = file_case_name_full
-    elif cluster_case_name_full and file_case_name_full:
-        if len(file_case_name_full) > len(cluster_case_name_full):
-            # Select best case name based on string length
-            update_dict["case_name_full"] = file_case_name_full
-            # Change stored value to new
-            cluster_case_name_full = file_case_name_full
-    else:
-        # We don't care if data is empty or both are empty
-        pass
-
     # Case with abbreviated case names
-    if not cluster_case_name and file_case_name:
+    if (
+        (cluster_case_name or not file_case_name)
+        and cluster_case_name
+        and file_case_name
+        and len(file_case_name) > len(cluster_case_name)
+        or not cluster_case_name
+        and file_case_name
+    ):
+        # Select best case name based on string length
         update_dict["case_name"] = file_case_name
         # Change stored value to new
         cluster_case_name = file_case_name
-    elif cluster_case_name and file_case_name:
-        if len(file_case_name) > len(cluster_case_name):
-            # Select best case name based on string length
-            update_dict["case_name"] = file_case_name
-            # Change stored value to new
-            cluster_case_name = file_case_name
-    else:
-        # We don't care if data is empty or both are empty
-        pass
-
     if cluster_case_name_full and cluster_case_name:
         if len(cluster_case_name) > len(cluster_case_name_full):
             # Swap field values
@@ -430,10 +419,7 @@ def merge_strings(
         return {}
 
     file_data, cl_data = overlapping_data
-    if len(file_data) > len(cl_data):
-        return {field_name: file_data}
-
-    return {}
+    return {field_name: file_data} if len(file_data) > len(cl_data) else {}
 
 
 def merge_long_fields(
@@ -459,11 +445,10 @@ def merge_long_fields(
         if len(file_data) > len(cl_data):
             return {field_name: file_data}
 
-    else:
-        if similarity <= 0.5:
-            logger.info(
-                f"The content compared is very different. Cluster id: {cluster_id}"
-            )
+    elif similarity <= 0.5:
+        logger.info(
+            f"The content compared is very different. Cluster id: {cluster_id}"
+        )
     return {}
 
 
@@ -540,16 +525,15 @@ def merge_judges(
             )
             return {"judges": titlecase(", ".join(new_judges_list))}
         else:
-            if skip_judge_merger:
-                # Fail silently but continue to merge
-                logger.info(
-                    f"Can't merge judges, something failed, cluster id: {cluster_id}"
-                )
-                return {}
-            else:
+            if not skip_judge_merger:
                 # Stop merge raising an exception
                 raise JudgeException("Judges are completely different.")
 
+            # Fail silently but continue to merge
+            logger.info(
+                f"Can't merge judges, something failed, cluster id: {cluster_id}"
+            )
+            return {}
     return {}
 
 
@@ -576,7 +560,7 @@ def merge_overlapping_data(
 
     data_to_update = {}
 
-    for field_name in changed_values_dictionary.keys():
+    for field_name in changed_values_dictionary:
         if field_name in long_fields:
             data_to_update.update(
                 merge_long_fields(
@@ -673,10 +657,9 @@ def update_cluster_panel(
     """
 
     panel_list = [titlecase(p) for p in panel_list]
-    panel = async_to_sync(lookup_judges_by_last_name_list)(
+    if panel := async_to_sync(lookup_judges_by_last_name_list)(
         panel_list, cluster.docket.court.id, panel_date, True
-    )
-    if panel:
+    ):
         cluster.panel.add(*Person.objects.filter(id__in=[p.id for p in panel]))
 
 
@@ -784,14 +767,15 @@ def clean_body_content(case_body: str, harvard_file: bool = False) -> str:
     if not harvard_file:
         opinion_text = soup.getText(separator=" ", strip=True)
     else:
-        opinions = []
-        for op in soup.find_all(
-            lambda tag: (
-                tag.name == "opinion" and tag.get("data-type") is None
+        opinions = [
+            op.text
+            for op in soup.find_all(
+                lambda tag: (
+                    tag.name == "opinion" and tag.get("data-type") is None
+                )
+                or tag.get("data-type") == "opinion"
             )
-            or tag.get("data-type") == "opinion"
-        ):
-            opinions.append(op.text)
+        ]
         opinion_text = "".join(
             [
                 op.text
@@ -817,15 +801,12 @@ def length_too_different(
     :param cl_characters: The CL opinion content characters
     :return: Whether the content is too different in length
     """
-    if len(cl_characters) == 0:
+    if not cl_characters:
         logger.info(f"Empty Courtlistener opinion cluster: {case.id}")
         return True
 
     diff = len(file_characters) / len(cl_characters)
-    if not (0.3 < diff < 3):
-        # Content too dissimilar in length to compare
-        return True
-    return False
+    return not 0.3 < diff < 3
 
 
 def content_too_different(
@@ -857,11 +838,7 @@ def content_too_different(
 
     if len(file_characters) > 10000:
         cosine_sim = get_cosine_similarity(file_characters, cl_characters)
-        if cosine_sim > 0.97:
-            return False
-        else:
-            return True
-
+        return cosine_sim <= 0.97
     percent_match = compare_documents(file_characters, cl_characters)
     if percent_match < 60:
         return True
@@ -898,9 +875,7 @@ def case_names_dont_overlap(
     file_case = f"{case_name_full} {case_name_abbreviation}"
     overlap = winnow_case_name(case.case_name) & winnow_case_name(file_case)
 
-    if not overlap:
-        return True
-    return False
+    return not overlap
 
 
 def cosine_similarity_too_different(
@@ -923,9 +898,7 @@ def cosine_similarity_too_different(
         similarities.append(similarity)
     max_similarity = max(similarities)
 
-    if max_similarity < 0.3:
-        return True
-    return False
+    return max_similarity < 0.3
 
 
 def has_too_similar_citation(
@@ -1009,15 +982,12 @@ def get_court_id(raw_court: str) -> list[str]:
     court_text = court_text.replace("\n", "").strip(".")
 
     for bankruptcy in [False, True]:
-        # Remove dot at end, try to get a partial string match, try with and
-        # without bankruptcy flag
-        found_court = find_court(
+        if found_court := find_court(
             court_text,
             bankruptcy=bankruptcy,
             location=None,
             allow_partial_matches=True,
-        )
-        if found_court:
+        ):
             return found_court
 
     return []

@@ -122,30 +122,26 @@ class SimpleMetadataWithFilters(SimpleMetadata):
             if len(filter_parts) > 1:
                 # Has a lookup type (__gt, __lt, etc.)
                 lookup_type = filter_parts[1]
-                if filters.get(filter_name) is not None:
+                if filters.get(filter_name) is None:
+                    attrs["lookup_types"] = [lookup_type]
+                else:
                     # We've done a filter with this name previously, just
                     # append the value.
                     attrs["lookup_types"] = filters[filter_name][
                         "lookup_types"
                     ]
                     attrs["lookup_types"].append(lookup_type)
-                else:
-                    attrs["lookup_types"] = [lookup_type]
+            elif isinstance(filter_type, RelatedFilter):
+                model_name = (
+                    filter_type.filterset.Meta.model._meta.verbose_name_plural.title()
+                )
+                attrs[
+                    "lookup_types"
+                ] = f"See available filters for '{model_name}'"
             else:
-                # Exact match or RelatedFilter
-                if isinstance(filter_type, RelatedFilter):
-                    model_name = (
-                        filter_type.filterset.Meta.model._meta.verbose_name_plural.title()
-                    )
-                    attrs[
-                        "lookup_types"
-                    ] = f"See available filters for '{model_name}'"
-                else:
-                    attrs["lookup_types"] = ["exact"]
+                attrs["lookup_types"] = ["exact"]
 
-            # Do choices
-            choices = filter_type.extra.get("choices", False)
-            if choices:
+            if choices := filter_type.extra.get("choices", False):
                 attrs["choices"] = [
                     {
                         "value": choice_value,
@@ -285,8 +281,7 @@ class LoggingMixin(object):
         timing_key = f"{api_prefix}.endpoint.d:{d}.timings"
         pipe.zincrby(timing_key, response_ms, endpoint)
 
-        results = pipe.execute()
-        return results
+        return pipe.execute()
 
     def _handle_events(self, results, user):
         total_count = results[0]
@@ -296,11 +291,10 @@ class LoggingMixin(object):
             Event.objects.create(
                 description=f"API has logged {total_count} total requests."
             )
-        if user.is_authenticated:
-            if user_count in self.milestones:
+        if user_count in self.milestones:
+            if user.is_authenticated:
                 Event.objects.create(
-                    description="User '%s' has placed their %s API request."
-                    % (user.username, intcomma(ordinal(user_count))),
+                    description=f"User '{user.username}' has placed their {intcomma(ordinal(user_count))} API request.",
                     user=user,
                 )
 
@@ -454,7 +448,7 @@ def invert_user_logs(
     out: defaultdict = defaultdict(dict)
     for d, result in zip(dates, results):
         for user_id, count in result:
-            if user_id == "None" or user_id == "AnonymousUser":
+            if user_id in ["None", "AnonymousUser"]:
                 user_id = "AnonymousUser"
             else:
                 user_id = int(user_id)
@@ -577,11 +571,7 @@ def get_next_webhook_retry_date(retry_counter: int) -> datetime:
     """
 
     INITIAL_TIME = 3  # minutes
-    # Update new_next_retry_date exponentially
-    new_next_retry_date = now() + timedelta(
-        minutes=pow(INITIAL_TIME, retry_counter + 1)
-    )
-    return new_next_retry_date
+    return now() + timedelta(minutes=pow(INITIAL_TIME, retry_counter + 1))
 
 
 WEBHOOK_MAX_RETRY_COUNTER = 7
@@ -627,8 +617,7 @@ def check_webhook_failure_count_and_notify(
         ).earliest("date_created")
         if current_try_counter >= WEBHOOK_MAX_RETRY_COUNTER:
             webhook.enabled = False
-            update_fields.append("enabled")
-            update_fields.append("date_modified")
+            update_fields.extend(("enabled", "date_modified"))
             # If the parent webhook is disabled mark all current ENQUEUED_RETRY
             # events as ENDPOINT_DISABLED
             WebhookEvent.objects.filter(
@@ -702,10 +691,11 @@ def update_webhook_event_after_request(
             webhook_event.retry_counter
         )
         webhook_event.retry_counter = F("retry_counter") + 1
-        webhook_event.event_status = WEBHOOK_EVENT_STATUS.ENQUEUED_RETRY
-        if webhook_event.debug:
-            # Test events are not enqueued for retry.
-            webhook_event.event_status = WEBHOOK_EVENT_STATUS.FAILED
+        webhook_event.event_status = (
+            WEBHOOK_EVENT_STATUS.FAILED
+            if webhook_event.debug
+            else WEBHOOK_EVENT_STATUS.ENQUEUED_RETRY
+        )
     else:
         webhook_event.event_status = WEBHOOK_EVENT_STATUS.SUCCESSFUL
         if not webhook_event.debug:
@@ -757,8 +747,7 @@ def log_webhook_event(webhook_user_id: int) -> list[int | float]:
     # the number of successful webhook request the user made in total.
     pipe.zincrby(f"{webhook_prefix}.user.counts", 1, webhook_user_id)
 
-    results = pipe.execute()
-    return results
+    return pipe.execute()
 
 
 def handle_webhook_events(results: list[int | float], user: User) -> None:

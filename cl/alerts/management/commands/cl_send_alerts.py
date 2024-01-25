@@ -237,7 +237,7 @@ class Command(VerboseCommand):
                             self.sis[search_type], results, user_webhook, alert
                         )
 
-            if len(hits) > 0:
+            if hits:
                 alerts_sent_count += 1
                 send_alert(user.profile, hits)
 
@@ -280,8 +280,7 @@ class Command(VerboseCommand):
         """
         valid_ids = {}
         for item_type in SEARCH_TYPES.ALL_TYPES:
-            ids = RealTimeQueue.objects.filter(item_type=item_type)
-            if ids:
+            if ids := RealTimeQueue.objects.filter(item_type=item_type):
                 main_params = {
                     "q": "*",  # Vital!
                     "caller": f"cl_send_alerts:{item_type}",

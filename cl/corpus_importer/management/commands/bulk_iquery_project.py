@@ -54,7 +54,7 @@ def add_all_cases_to_cl(options: OptionsType) -> None:
         options["iterations"] == 0
         or iterations_completed < options["iterations"]
     ):
-        if len(court_ids) == 0:
+        if not court_ids:
             # No more courts. Done!
             print("Finished all courts. Exiting!")
             break
@@ -136,11 +136,10 @@ class CycleChecker:
         self.court_counts[court_id] += 1
         if self.court_counts[court_id] == self.current_iteration:
             return False
-        else:
-            # Finished cycle and court has been seen more times than the
-            # iteration count. Bump the iteration count and return True.
-            self.current_iteration += 1
-            return True
+        # Finished cycle and court has been seen more times than the
+        # iteration count. Bump the iteration count and return True.
+        self.current_iteration += 1
+        return True
 
 
 def update_open_cases(options) -> None:

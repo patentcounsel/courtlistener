@@ -52,10 +52,10 @@ def parse_file(file_path):
     object. The regexes associated to its value in special_regexes will be used.
     """
     raw_info = get_text(file_path)
-    info = {}
-    # get basic info
-    info["unpublished"] = raw_info["unpublished"]
-    info["file"] = os.path.splitext(os.path.basename(file_path))[0]
+    info = {
+        "unpublished": raw_info["unpublished"],
+        "file": os.path.splitext(os.path.basename(file_path))[0],
+    }
     info["docket"] = "".join(raw_info.get("docket", [])) or None
     info["citations"] = raw_info.get("citation", [])
     info["attorneys"] = "".join(raw_info.get("attorneys", [])) or None
@@ -79,16 +79,14 @@ def parse_file(file_path):
     info["case_name_full"] = (
         format_case_name("".join(raw_info.get("caption", []))) or ""
     )
-    case_name = (
+    if case_name := (
         format_case_name("".join(raw_info.get("reporter_caption", []))) or ""
-    )
-    if case_name:
+    ):
         info["case_name"] = case_name
-    else:
-        if info["case_name_full"]:
-            # Sometimes the <caption> node has values and the <reporter_caption>
-            # node does not. Fall back to <caption> in this case.
-            info["case_name"] = info["case_name_full"]
+    elif info["case_name_full"]:
+        # Sometimes the <caption> node has values and the <reporter_caption>
+        # node does not. Fall back to <caption> in this case.
+        info["case_name"] = info["case_name_full"]
     if not info["case_name"]:
         raise Exception(
             "Failed to find case_name, even after falling back to "
@@ -148,10 +146,9 @@ def parse_file(file_path):
                     info["judges"] = opinion["byline"]
 
         if last_texts:
-            relevant_opinions = [
+            if relevant_opinions := [
                 o for o in info["opinions"] if o["type"] == current_type
-            ]
-            if relevant_opinions:
+            ]:
                 relevant_opinions[-1]["opinion"] += "\n%s" % "\n".join(
                     last_texts
                 )
@@ -207,14 +204,10 @@ def get_text(file_path):
     """
     with open(file_path, "r") as f:
         file_string = f.read()
-    raw_info = {}
-
     # used when associating a byline of an opinion with the opinion's text
     current_byline = {"type": None, "name": None}
 
-    # if this is an unpublished opinion, note this down and remove all
-    # <unpublished> tags
-    raw_info["unpublished"] = False
+    raw_info = {"unpublished": False}
     if "<opinion unpublished=true>" in file_string:
         file_string = file_string.replace(
             "<opinion unpublished=true>", "<opinion>"
@@ -359,9 +352,7 @@ def parse_dates(raw_dates):
                 text = months.split(raw_part.lower())[0].strip()
             # remove footnotes and non-alphanumeric characters
             text = re.sub(r"(\[fn.?\])", "", text)
-            text = re.sub(r"[^A-Za-z ]", "", text).strip()
-            # if we ended up getting some text, add it, else ignore it
-            if text:
+            if text := re.sub(r"[^A-Za-z ]", "", text).strip():
                 inner_dates.append((clean_string(text), d))
             else:
                 inner_dates.append((None, d))
@@ -396,7 +387,7 @@ def get_state_court_object(raw_court, file_path):
 
     # this messes up for, e.g. 'St. Louis', and 'U.S. Circuit Court, but works
     # for all others
-    if "." in raw_court and not any(s in raw_court for s in ["St.", "U.S"]):
+    if "." in raw_court and all(s not in raw_court for s in ["St.", "U.S"]):
         j = raw_court.find(".")
         r = raw_court[:j]
 
@@ -429,4 +420,3 @@ if __name__ == "__main__":
     parsed = parse_file(
         "/vagrant/flp/columbia_data/opinions/01910ad13eb152b3.xml"
     )
-    pass

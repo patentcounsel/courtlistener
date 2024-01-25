@@ -58,12 +58,11 @@ NOS_EXCLUSIONS = [
 
 
 def get_fjc_rows():
-    items = FjcIntegratedDatabase.objects.exclude(
+    return FjcIntegratedDatabase.objects.exclude(
         nature_of_suit__in=NOS_EXCLUSIONS,
     ).filter(
         date_filed__gte="2014-01-01", dataset_source__in=[CV_2017, CV_2020]
     )
-    return items
 
 
 def get_everything_sample(options, sample_size):

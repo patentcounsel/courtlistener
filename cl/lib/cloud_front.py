@@ -32,5 +32,4 @@ def invalidate_cloudfront(paths: str | list[str]) -> str:
             "CallerReference": str(time.time()).replace(".", ""),
         },
     )
-    invalidation_id = res["Invalidation"]["Id"]
-    return invalidation_id
+    return res["Invalidation"]["Id"]

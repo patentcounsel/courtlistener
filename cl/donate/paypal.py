@@ -89,25 +89,24 @@ def process_paypal_callback(request: HttpRequest) -> HttpResponse:
         d.save()
         send_thank_you_email(d, payment_type=PAYMENT_TYPES.DONATION)
         send_big_donation_email(d, payment_type=PAYMENT_TYPES.DONATION)
-    else:
-        if (
+    elif (
             r.status_code == HTTPStatus.BAD_REQUEST
             and r.json().get("name") == "INSTRUMENT_DECLINED"
         ):
-            d.status = Donation.FAILED
-            d.save()
-            return render(
-                request,
-                "donate_complete.html",
-                {"error": "declined", "private": True},
-            )
-        else:
-            logger.critical(
-                "Unable to execute PayPal transaction. Status code %s "
-                "with data: %s" % (r.status_code, r.text)
-            )
-            d.status = Donation.UNKNOWN_ERROR
-            d.save()
+        d.status = Donation.FAILED
+        d.save()
+        return render(
+            request,
+            "donate_complete.html",
+            {"error": "declined", "private": True},
+        )
+    else:
+        logger.critical(
+            "Unable to execute PayPal transaction. Status code %s "
+            "with data: %s" % (r.status_code, r.text)
+        )
+        d.status = Donation.UNKNOWN_ERROR
+        d.save()
     # Finally, show them the thank you page
     return HttpResponseRedirect(reverse("donate_complete"))
 
@@ -146,36 +145,35 @@ def process_paypal_payment(
         timeout=30,
     )
 
-    if r.status_code == HTTPStatus.CREATED:
-        r_content_as_dict = json.loads(r.content)
-        # Get the redirect value from the 'links' attribute. Links look like:
-        #   [{u'href': u'https://api.sandbox.paypal.com/v1/payments/payment/PAY-8BC403022U6413151KIQPC2I',
-        #     u'method': u'GET',
-        #     u'rel': u'self'},
-        #    {u'href': u'https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=EC-6VV58324J9479725S',
-        #     u'method': u'REDIRECT',
-        #     u'rel': u'approval_url'},
-        #    {u'href': u'https://api.sandbox.paypal.com/v1/payments/payment/PAY-8BC403022U6413151KIQPC2I/execute',
-        #     u'method': u'POST',
-        #     u'rel': u'execute'}
-        #   ]
-        redirect = [
-            link
-            for link in r_content_as_dict["links"]
-            if link["rel"].lower() == "approval_url"
-        ][0]["href"]
-        parsed_redirect = urlparse(redirect)
-        token = parse_qs(parsed_redirect.query)["token"][0]
-        response = {
-            "status": Donation.AWAITING_PAYMENT,
-            "payment_id": r_content_as_dict.get("id"),
-            "transaction_id": token,
-            "redirect": redirect,
-        }
-        logger.info("Created payment in paypal with response: %s", response)
-        return response
-    else:
+    if r.status_code != HTTPStatus.CREATED:
         raise PaymentFailureException("UNABLE_TO_MAKE_PAYMENT")
+    r_content_as_dict = json.loads(r.content)
+    # Get the redirect value from the 'links' attribute. Links look like:
+    #   [{u'href': u'https://api.sandbox.paypal.com/v1/payments/payment/PAY-8BC403022U6413151KIQPC2I',
+    #     u'method': u'GET',
+    #     u'rel': u'self'},
+    #    {u'href': u'https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_express-checkout&token=EC-6VV58324J9479725S',
+    #     u'method': u'REDIRECT',
+    #     u'rel': u'approval_url'},
+    #    {u'href': u'https://api.sandbox.paypal.com/v1/payments/payment/PAY-8BC403022U6413151KIQPC2I/execute',
+    #     u'method': u'POST',
+    #     u'rel': u'execute'}
+    #   ]
+    redirect = [
+        link
+        for link in r_content_as_dict["links"]
+        if link["rel"].lower() == "approval_url"
+    ][0]["href"]
+    parsed_redirect = urlparse(redirect)
+    token = parse_qs(parsed_redirect.query)["token"][0]
+    response = {
+        "status": Donation.AWAITING_PAYMENT,
+        "payment_id": r_content_as_dict.get("id"),
+        "transaction_id": token,
+        "redirect": redirect,
+    }
+    logger.info("Created payment in paypal with response: %s", response)
+    return response
 
 
 def donate_paypal_cancel(request: HttpRequest) -> HttpResponse:

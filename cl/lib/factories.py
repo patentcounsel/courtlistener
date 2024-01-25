@@ -59,7 +59,7 @@ class RelatedFactoryVariableList(RelatedFactoryList):
             # Generate size number of objects
             return [
                 super(RelatedFactoryList, self).call(instance, step, context)
-                for i in range(size)
+                for _ in range(size)
             ]
         results = []
         for d in data:

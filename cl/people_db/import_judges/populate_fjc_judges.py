@@ -141,7 +141,7 @@ def transform_bankruptcy(string):
         None
         if a is None
         else re.split(r"\,+\s+(?=\d)+", a, 1)
-        if not any(month in a for month in month_list)
+        if all(month not in a for month in month_list)
         else re.split(
             r",+\s+(?=June|March|January|February|April|May|July|August|September|October|November|December|Fall|Spring)+",
             a,
@@ -171,35 +171,33 @@ def transform_bankruptcy(string):
     while j < len(bankruptcy_list):
         if bankruptcy_list[j][-1] is None:  # empty cell
             bankruptcy_list[j].insert(-1, None)
-        else:
-            if (
+        elif (
                 any(word in bankruptcy_list[j][-1] for word in month)
                 or bankruptcy_list[j][-1].startswith("1")
                 or bankruptcy_list[j][-1].startswith("2")
             ):
-                tmp_year = bankruptcy_list[j].pop()
-                if len(tmp_year.split("-")) == 1:
-                    bankruptcy_list[j].extend([tmp_year, None])
-                else:
-                    bankruptcy_list[j].extend(tmp_year.split("-"))
-            elif any(word in bankruptcy_list[j][-1] for word in season):
-                c = bankruptcy_list[j][:]
-                B = c[-1].split(",")
-                bankruptcy_list[j][-1] = B[0]
-                n = len(B)
-                for k in range(1, n):
-                    d = c[:]
-                    bankruptcy_list.insert(j + k, d)
-                    bankruptcy_list[j + k][-1] = B[k]
-                tmp_year = bankruptcy_list[j].pop()
-                if len(tmp_year.split("-")) == 1:
-                    bankruptcy_list[j].extend([tmp_year, None])
-                else:
-                    bankruptcy_list[j].extend(tmp_year.split("-"))
-                if len(bankruptcy_list[j]) == 3:
-                    bankruptcy_list[j].append(None)
+            tmp_year = bankruptcy_list[j].pop()
+            if len(tmp_year.split("-")) == 1:
+                bankruptcy_list[j].extend([tmp_year, None])
             else:
+                bankruptcy_list[j].extend(tmp_year.split("-"))
+        elif any(word in bankruptcy_list[j][-1] for word in season):
+            c = bankruptcy_list[j][:]
+            B = c[-1].split(",")
+            bankruptcy_list[j][-1] = B[0]
+            n = len(B)
+            for k in range(1, n):
+                bankruptcy_list.insert(j + k, c[:])
+                bankruptcy_list[j + k][-1] = B[k]
+            tmp_year = bankruptcy_list[j].pop()
+            if len(tmp_year.split("-")) == 1:
+                bankruptcy_list[j].extend([tmp_year, None])
+            else:
+                bankruptcy_list[j].extend(tmp_year.split("-"))
+            if len(bankruptcy_list[j]) == 3:
                 bankruptcy_list[j].append(None)
+        else:
+            bankruptcy_list[j].append(None)
         j += 1
     bankruptcy_list = [list(e) for e in zip(*bankruptcy_list)]
     position, location, start_year, end_year = bankruptcy_list
@@ -323,11 +321,7 @@ def add_positions_from_row(item, person, testing, fix_nums=None):
         else:
             votes_yes = None
             votes_no = None
-        if item[f"Senate Vote Type{pos_str}"] == "Yes":
-            voice_vote = True
-        else:
-            voice_vote = False
-
+        voice_vote = item[f"Senate Vote Type{pos_str}"] == "Yes"
         termdict = {
             "Abolition of Court": "abolished",
             "Death": "ded",
@@ -339,11 +333,7 @@ def add_positions_from_row(item, person, testing, fix_nums=None):
             "Retirement": "retire_vol",
         }
         term_reason = item[f"Termination{pos_str}"]
-        if pd.isnull(term_reason):
-            term_reason = ""
-        else:
-            term_reason = termdict[term_reason]
-
+        term_reason = "" if pd.isnull(term_reason) else termdict[term_reason]
         position = Position(
             person=person,
             court_id=courtid,
@@ -375,10 +365,7 @@ def add_positions_from_row(item, person, testing, fix_nums=None):
         if not pd.isnull(p) and p not in ["Assignment", "Reassignment"]:
             party = get_party(item[f"Party of Appointing President{pos_str}"])
             if prev_politics is None:
-                if pd.isnull(date_nominated):
-                    politicsgran = ""
-                else:
-                    politicsgran = GRANULARITY_DAY
+                politicsgran = "" if pd.isnull(date_nominated) else GRANULARITY_DAY
                 politics = PoliticalAffiliation(
                     person=person,
                     political_party=party,
@@ -656,11 +643,7 @@ def make_mag_bk_judge(item, testing=False):
     if not pd.isnull(item["GENDER"]):
         gender = get_gender(item["GENDER"])
 
-    if not item["NAME_SUFFIX"] == "":
-        suffix = get_suffix(item["NAME_SUFFIX"])
-    else:
-        suffix = ""
-
+    suffix = get_suffix(item["NAME_SUFFIX"]) if item["NAME_SUFFIX"] != "" else ""
     # Instantiate Judge object.
     person = Person(
         name_first=item["NAME_FIRST"],

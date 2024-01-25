@@ -138,8 +138,7 @@ def filepath_list(
     glob_paths = _make_glob_from_args(reporter, volumes, page)
     for glob_path in glob_paths:
         files.extend(glob(glob_path))
-    files = human_sort(files, key=None)  # type: ignore
-    return files  # type: ignore
+    return human_sort(files, key=None)
 
 
 def check_for_match(new_case: str, possibilities: list[str]) -> bool:
@@ -160,7 +159,7 @@ def check_for_match(new_case: str, possibilities: list[str]) -> bool:
         match = difflib.get_close_matches(
             new_case, possibilities, n=1, cutoff=0.7
         )[0]
-        return True if match else False
+        return bool(match)
     except IndexError:
         # No good matches.
         return False
@@ -212,11 +211,7 @@ def parse_extra_fields(soup, fields, long_field=False) -> dict:
             else:
                 elements.append(elem.text)
 
-        if long_field:
-            data_set[field] = " ".join(elements)
-        else:
-            data_set[field] = ", ".join(elements)
-
+        data_set[field] = " ".join(elements) if long_field else ", ".join(elements)
     return data_set
 
 
@@ -381,15 +376,14 @@ def parse_harvard_opinions(options: OptionsType) -> None:
             logger.warning(f"No opinion in Harvard XML at {file_path}")
             continue
 
-        previously_imported_case = find_previously_imported_cases(
+        if previously_imported_case := find_previously_imported_cases(
             data,
             court_id,
             date_filed,
             harvard_characters,
             case_name_full,
             citation,
-        )
-        if previously_imported_case:
+        ):
             # Simply add citations to our matched case for now. Later, we'll
             # upgrade this to do a full merge.
 
@@ -511,10 +505,9 @@ def add_new_case(
                     % trunc(docket_string, length=5000, ellipsis="...")
                 )
                 docket.save()
-                long_data["correction"] = "%s <br> %s" % (
-                    data["docket_number"],
-                    long_data["correction"],
-                )
+                long_data[
+                    "correction"
+                ] = f'{data["docket_number"]} <br> {long_data["correction"]}'
 
         cluster = OpinionCluster(
             case_name=case_name,
@@ -587,7 +580,7 @@ def add_opinions(
             author_str = ""
             author_tag_str = ""
 
-        per_curiam = True if author_tag_str == "Per Curiam" else False
+        per_curiam = author_tag_str == "Per Curiam"
         # If Per Curiam is True set author string to Per Curiam
         if per_curiam:
             author_str = "Per Curiam"

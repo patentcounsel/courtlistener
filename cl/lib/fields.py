@@ -16,10 +16,7 @@ class CharNullField(models.CharField):
         """
         Gets value right out of the db and changes it if its ``None``.
         """
-        if value is None:
-            return ""
-        else:
-            return value
+        return "" if value is None else value
 
     def to_python(self, value):
         """
@@ -28,23 +25,13 @@ class CharNullField(models.CharField):
         if isinstance(value, models.CharField):
             # If an instance, just return the instance.
             return value
-        if value is None:
-            # If db has NULL, convert it to ''.
-            return ""
-
-        # Otherwise, just return the value.
-        return value
+        return "" if value is None else value
 
     def get_prep_value(self, value):
         """
         Catches value right before sending to db.
         """
-        if value == "":
-            # If Django tries to save an empty string, send the db None (NULL).
-            return None
-        else:
-            # Otherwise, just pass the value.
-            return value
+        return None if value == "" else value
 
 
 class PercolatorField(fields.DEDField, Percolator):

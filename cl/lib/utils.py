@@ -27,11 +27,10 @@ def deepgetattr(obj, name, default=_UNSPECIFIED):
         AttributeError: if obj has no 'name' attribute.
     """
     try:
-        if "." in name:
-            attr, subname = name.split(".", 1)
-            return deepgetattr(getattr(obj, attr), subname, default)
-        else:
+        if "." not in name:
             return getattr(obj, name)
+        attr, subname = name.split(".", 1)
+        return deepgetattr(getattr(obj, attr), subname, default)
     except AttributeError:
         if default is _UNSPECIFIED:
             raise
@@ -109,8 +108,7 @@ def wrap_text(length: int, text: str) -> str:
     :param text: text to wrap
     :return: text wrapped
     """
-    words = text.split(" ")
-    if words:
+    if words := text.split(" "):
         lines = [words[0]]
         for word in words[1:]:
             if len(lines[-1]) + len(word) < length:

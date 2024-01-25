@@ -98,8 +98,7 @@ def check_if_executed_today() -> bool:
     """
     daemon_key = "daemon:webhooks:executed"
     r = make_redis_interface("CACHE", decode_responses=False)
-    exists_daemon_key = r.get(daemon_key)
-    if exists_daemon_key:
+    if exists_daemon_key := r.get(daemon_key):
         return True
     r.set(daemon_key, "True", ex=60 * 15)
     return False

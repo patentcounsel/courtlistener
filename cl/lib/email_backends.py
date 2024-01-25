@@ -32,7 +32,7 @@ def incr_email_counters(pipe: Pipeline) -> None:
     """
     temp_counter = int(pipe.get("email:temp_counter") or 0)  # type: ignore
     pipe.multi()
-    if int(temp_counter) + 1 >= settings.EMAIL_MAX_TEMP_COUNTER:
+    if temp_counter + 1 >= settings.EMAIL_MAX_TEMP_COUNTER:
         current_time = time.time_ns()
         pipe.zadd("email:delivery_attempts", {str(current_time): current_time})
         pipe.set("email:temp_counter", 0)
@@ -162,13 +162,11 @@ class EmailBackend(BaseEmailBackend):
         msg_count = 0
         for email_message in email_messages:
             original_recipients = normalize_addresses(email_message.to)
-            recipient_list = []
-
-            # Verify a recipient's email address is banned.
-            for email_address in original_recipients:
-                if is_not_email_banned(email_address):
-                    recipient_list.append(email_address)
-
+            recipient_list = [
+                email_address
+                for email_address in original_recipients
+                if is_not_email_banned(email_address)
+            ]
             # If all recipients are banned, the message is discarded
             if not recipient_list:
                 continue

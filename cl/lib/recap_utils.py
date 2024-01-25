@@ -11,11 +11,7 @@ def get_bucket_name(court, pacer_case_id):
 
 
 def get_docketxml_url(court, pacer_case_id):
-    return "%s/%s/%s" % (
-        BASE_DOWNLOAD_URL,
-        get_bucket_name(court, pacer_case_id),
-        get_docket_filename(court, pacer_case_id, "xml"),
-    )
+    return f'{BASE_DOWNLOAD_URL}/{get_bucket_name(court, pacer_case_id)}/{get_docket_filename(court, pacer_case_id, "xml")}'
 
 
 def get_docketxml_url_from_path(path):
@@ -28,14 +24,14 @@ def get_docketxml_url_from_path(path):
         https://www.archive.org/download/gov/gov.uscourts.akd.23118.docket.xml
     """
     filename = path.rsplit("/", 1)[-1]
-    bucket = ".".join(filename.split(".")[0:4])
+    bucket = ".".join(filename.split(".")[:4])
     return f"{BASE_DOWNLOAD_URL}/{bucket}/{filename}"
 
 
 def get_ia_document_url_from_path(path, document_number, attachment_number):
     """Make an IA URL based on the download path of an item."""
     filename = path.rsplit("/", 1)[-1]
-    bucket = ".".join(filename.split(".")[0:4])
+    bucket = ".".join(filename.split(".")[:4])
     return "{url}/{bucket}/{bucket}.{doc_num}.{att_num}.pdf".format(
         url=BASE_DOWNLOAD_URL,
         bucket=bucket,
@@ -47,7 +43,7 @@ def get_ia_document_url_from_path(path, document_number, attachment_number):
 def get_local_document_url_from_path(path, document_number, attachment_number):
     """Make a path to a local copy of a PDF."""
     filename = path.rsplit("/", 1)[-1]
-    bucket = ".".join(filename.split(".")[0:4])
+    bucket = ".".join(filename.split(".")[:4])
     return f"{bucket}.{document_number}.{attachment_number}.pdf"
 
 

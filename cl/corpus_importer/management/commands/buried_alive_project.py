@@ -33,11 +33,7 @@ def get_docket_ids(main_query):
             settings.SOLR_RECAP_URL, http_connection=session, mode="r"
         )
         results = si.query().add_extra(**main_query).execute()
-    docket_ids = set()
-
-    for result in results:
-        docket_ids.add(result["docket_id"])
-
+    docket_ids = {result["docket_id"] for result in results}
     logger.info(f"Got {len(docket_ids)} docket IDs back from Solr.")
     return docket_ids
 

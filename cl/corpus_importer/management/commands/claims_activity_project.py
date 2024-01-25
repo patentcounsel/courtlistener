@@ -128,9 +128,7 @@ def serialize_json(obj: date) -> str:
     :return: A string date in ISO format.
     """
 
-    if isinstance(obj, date):
-        return obj.isoformat()
-    return ""
+    return obj.isoformat() if isinstance(obj, date) else ""
 
 
 def make_csv_file() -> None:
@@ -161,7 +159,7 @@ def make_csv_file() -> None:
         with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
-        if not data == {} and not data == []:
+        if data not in [{}, []]:
             dataframe = pd.DataFrame()
             for row in data:
                 # Create rows for claims without attachments.

@@ -78,8 +78,7 @@ class DocketFeed(Feed):
 
     def item_title(self, item: DocketEntry) -> SafeText:
         docket_title = make_docket_title(item.docket)
-        entry_number = item.entry_number
-        if entry_number:
+        if entry_number := item.entry_number:
             preface = f"Entry #{entry_number}"
         else:
             preface = f"Minute entry from {item.date_filed}"
@@ -115,16 +114,11 @@ class DocketFeed(Feed):
             # No docs with entry
             return None
 
-        # Serve the PDF if we have it
-        path = main_rd.filepath_local
-        if path:
+        if path := main_rd.filepath_local:
             return f"https://storage.courtlistener.com/{path}"
 
         # If we don't have the PDF, serve a link to PACER
-        if main_rd.pacer_url:
-            return main_rd.pacer_url
-
-        return None
+        return main_rd.pacer_url if main_rd.pacer_url else None
 
     # See: https://validator.w3.org/feed/docs/error/UseZeroForUnknown.html
     item_enclosure_length = 0

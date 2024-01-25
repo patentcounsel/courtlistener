@@ -56,8 +56,7 @@ class JurisdictionPodcast(JurisdictionFeed):
                     "start": "0",
                     "caller": "JurisdictionPodcast",
                 }
-                items = solr.query().add_extra(**params).execute()
-                return items
+                return solr.query().add_extra(**params).execute()
         else:
             cd = {
                 "q": "*",
@@ -66,8 +65,7 @@ class JurisdictionPodcast(JurisdictionFeed):
                 "type": SEARCH_TYPES.ORAL_ARGUMENT,
             }
             search_query = AudioDocument.search()
-            items = do_es_feed_query(search_query, cd, rows=20)
-            return items
+            return do_es_feed_query(search_query, cd, rows=20)
 
     def feed_extra_kwargs(self, obj):
         extra_args = {
@@ -141,8 +139,7 @@ class AllJurisdictionsPodcast(JurisdictionPodcast):
                     "start": "0",
                     "caller": "AllJurisdictionsPodcast",
                 }
-                items = solr.query().add_extra(**params).execute()
-                return items
+                return solr.query().add_extra(**params).execute()
         else:
             cd = {
                 "q": "*",
@@ -150,8 +147,7 @@ class AllJurisdictionsPodcast(JurisdictionPodcast):
                 "type": SEARCH_TYPES.ORAL_ARGUMENT,
             }
             search_query = AudioDocument.search()
-            items = do_es_feed_query(search_query, cd, rows=20)
-            return items
+            return do_es_feed_query(search_query, cd, rows=20)
 
 
 class SearchPodcast(JurisdictionPodcast):
@@ -162,39 +158,36 @@ class SearchPodcast(JurisdictionPodcast):
 
     def items(self, obj):
         search_form = SearchForm(obj.GET)
-        if search_form.is_valid():
-            cd = search_form.cleaned_data
-            if not waffle.flag_is_active(obj, "oa-es-active"):
-                with Session() as session:
-                    solr = ExtraSolrInterface(
-                        settings.SOLR_AUDIO_URL,
-                        http_connection=session,
-                        mode="r",
-                    )
-                    main_params = search_utils.build_main_query(
-                        cd, highlight=False, facet=False
-                    )
-                    main_params.update(
-                        {
-                            "sort": "dateArgued desc",
-                            "rows": "20",
-                            "start": "0",
-                            "caller": "SearchFeed",
-                        }
-                    )
-                    items = solr.query().add_extra(**main_params).execute()
-                    return items
-            else:
-                override_params = {
-                    "order_by": "dateArgued desc",
-                }
-                cd.update(override_params)
-                search_query = AudioDocument.search()
-                items = do_es_feed_query(
-                    search_query,
-                    cd,
-                    rows=20,
-                )
-                return items
-        else:
+        if not search_form.is_valid():
             return []
+        cd = search_form.cleaned_data
+        if waffle.flag_is_active(obj, "oa-es-active"):
+            override_params = {
+                "order_by": "dateArgued desc",
+            }
+            cd.update(override_params)
+            search_query = AudioDocument.search()
+            return do_es_feed_query(
+                search_query,
+                cd,
+                rows=20,
+            )
+        else:
+            with Session() as session:
+                solr = ExtraSolrInterface(
+                    settings.SOLR_AUDIO_URL,
+                    http_connection=session,
+                    mode="r",
+                )
+                main_params = search_utils.build_main_query(
+                    cd, highlight=False, facet=False
+                )
+                main_params.update(
+                    {
+                        "sort": "dateArgued desc",
+                        "rows": "20",
+                        "start": "0",
+                        "caller": "SearchFeed",
+                    }
+                )
+                return solr.query().add_extra(**main_params).execute()

@@ -107,10 +107,7 @@ def build_daterange_query(
             ), f"'{relation}' is not an allowed relation."
             params["relation"] = relation
 
-    if params:
-        return [Q("range", **{field: params})]
-
-    return []
+    return [Q("range", **{field: params})] if params else []
 
 
 def make_es_boost_list(fields: Dict[str, float]) -> list[str]:
@@ -272,53 +269,50 @@ def build_fulltext_query(
     into a bool clause.
     :return: A Elasticsearch QueryString or [] if the "value" param is empty.
     """
-    if value:
-        if check_unbalanced_parenthesis(value):
-            raise UnbalancedQuery("The query contains unbalanced parentheses.")
-        # In Elasticsearch, the colon (:) character is used to separate the
-        # field name and the field value in a query.
-        # To avoid parsing errors escape any colon characters in the value
-        # parameter with a backslash.
-        if "docketNumber:" in value:
-            docket_number_matches = re.findall("docketNumber:([^ ]+)", value)
-            for match in docket_number_matches:
-                replacement = match.replace(":", r"\:")
-                value = value.replace(
-                    f"docketNumber:{match}", f"docketNumber:{replacement}"
-                )
+    if not value:
+        return []
+    if check_unbalanced_parenthesis(value):
+        raise UnbalancedQuery("The query contains unbalanced parentheses.")
+    # In Elasticsearch, the colon (:) character is used to separate the
+    # field name and the field value in a query.
+    # To avoid parsing errors escape any colon characters in the value
+    # parameter with a backslash.
+    if "docketNumber:" in value:
+        docket_number_matches = re.findall("docketNumber:([^ ]+)", value)
+        for match in docket_number_matches:
+            replacement = match.replace(":", r"\:")
+            value = value.replace(
+                f"docketNumber:{match}", f"docketNumber:{replacement}"
+            )
 
-        # Used for the phrase query_string, no conjunctions appended.
-        query_value = cleanup_main_query(value)
+    # Used for the phrase query_string, no conjunctions appended.
+    query_value = cleanup_main_query(value)
 
-        # To enable the search of each term in the query across multiple fields
-        # it's necessary to include an "AND" conjunction between each term.
-        # https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html#query-string-multi-field
-        # Used for the best_fields query_string.
-        query_value_with_conjunctions = append_query_conjunctions(query_value)
+    # To enable the search of each term in the query across multiple fields
+    # it's necessary to include an "AND" conjunction between each term.
+    # https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-query-string-query.html#query-string-multi-field
+    # Used for the best_fields query_string.
+    query_value_with_conjunctions = append_query_conjunctions(query_value)
 
-        q_should = [
-            Q(
-                "query_string",
-                fields=fields,
-                query=query_value_with_conjunctions,
-                quote_field_suffix=".exact",
-                default_operator="AND",
-                tie_breaker=0.3,
-            ),
-            Q(
-                "query_string",
-                fields=fields,
-                query=query_value,
-                quote_field_suffix=".exact",
-                default_operator="AND",
-                type="phrase",
-            ),
-        ]
-        if only_queries:
-            return q_should
-        return Q("bool", should=q_should)
-
-    return []
+    q_should = [
+        Q(
+            "query_string",
+            fields=fields,
+            query=query_value_with_conjunctions,
+            quote_field_suffix=".exact",
+            default_operator="AND",
+            tie_breaker=0.3,
+        ),
+        Q(
+            "query_string",
+            fields=fields,
+            query=query_value,
+            quote_field_suffix=".exact",
+            default_operator="AND",
+            type="phrase",
+        ),
+    ]
+    return q_should if only_queries else Q("bool", should=q_should)
 
 
 def build_term_query(
@@ -426,13 +420,12 @@ def build_sort_results(cd: CleanData) -> Dict:
         # Return random sorting if available.
         # Define the random seed using the value defined in random_{seed}
         seed = int(time.time())
-        match = re.search(r"random_(\d+)", order_by)
-        if match:
+        if match := re.search(r"random_(\d+)", order_by):
             seed = int(match.group(1))
 
         order_by_key = re.sub(r"random_\S*", "random_", order_by)
         order = order_by_map[order_by_key]["random_"]["order"]
-        random_sort = {
+        return {
             "_script": {
                 "type": "number",
                 "script": {
@@ -442,13 +435,7 @@ def build_sort_results(cd: CleanData) -> Dict:
                 "order": order,
             }
         }
-        return random_sort
-
-    if order_by not in order_by_map:
-        # Sort by score in descending order
-        return order_by_map["score desc"]
-
-    return order_by_map[order_by]
+    return order_by_map.get(order_by, order_by_map["score desc"])
 
 
 def get_child_sorting_key(cd: CleanData) -> tuple[str, str]:
@@ -474,10 +461,7 @@ def build_es_filters(cd: CleanData) -> List:
     """
 
     queries_list = []
-    if (
-        cd["type"] == SEARCH_TYPES.PARENTHETICAL
-        or cd["type"] == SEARCH_TYPES.ORAL_ARGUMENT
-    ):
+    if cd["type"] in [SEARCH_TYPES.PARENTHETICAL, SEARCH_TYPES.ORAL_ARGUMENT]:
         # Build court terms filter
         queries_list.extend(
             build_term_query(
@@ -777,16 +761,14 @@ def build_child_docs_query(
     """
 
     if not join_query:
-        # Match all case.
         if not exclude_docs_for_empty_field:
             return Q("match", docket_child="recap_document")
-        else:
-            filters = [
-                Q("match", docket_child="recap_document"),
-                Q("exists", field=exclude_docs_for_empty_field),
-            ]
+        filters = [
+            Q("match", docket_child="recap_document"),
+            Q("exists", field=exclude_docs_for_empty_field),
+        ]
 
-            return Q("bool", filter=filters)
+        return Q("bool", filter=filters)
 
     query_dict = join_query.to_dict()
     if "filter" in query_dict["bool"]:
@@ -843,8 +825,7 @@ def build_es_main_query(
                 total_child_results,
             )
         case SEARCH_TYPES.RECAP | SEARCH_TYPES.DOCKETS:
-            child_docs_count_query = build_child_docs_query(join_query)
-            if child_docs_count_query:
+            if child_docs_count_query := build_child_docs_query(join_query):
                 # Get the total RECAP Documents count.
                 search_query_base = search_query_base.query(
                     child_docs_count_query
@@ -1136,25 +1117,23 @@ def merge_courts_from_db(results: Page, search_type: str) -> None:
     :return: None, the function modifies the search results object in place.
     """
 
-    if search_type == SEARCH_TYPES.PARENTHETICAL:
-        court_ids = [
-            d["grouped_by_opinion_cluster_id"]["hits"]["hits"][0]["_source"][
-                "court_id"
-            ]
-            for d in results
+    if search_type != SEARCH_TYPES.PARENTHETICAL:
+        return
+    court_ids = [
+        d["grouped_by_opinion_cluster_id"]["hits"]["hits"][0]["_source"][
+            "court_id"
         ]
-        courts_in_page = Court.objects.filter(pk__in=court_ids).only(
-            "pk", "citation_string"
-        )
-        courts_dict = {}
-        for court in courts_in_page:
-            courts_dict[court.pk] = court.citation_string
-
-        for result in results.object_list:
-            top_hits = result.grouped_by_opinion_cluster_id.hits.hits
-            for hit in top_hits:
-                court_id = hit["_source"]["court_id"]
-                hit["_source"]["citation_string"] = courts_dict.get(court_id)
+        for d in results
+    ]
+    courts_in_page = Court.objects.filter(pk__in=court_ids).only(
+        "pk", "citation_string"
+    )
+    courts_dict = {court.pk: court.citation_string for court in courts_in_page}
+    for result in results.object_list:
+        top_hits = result.grouped_by_opinion_cluster_id.hits.hits
+        for hit in top_hits:
+            court_id = hit["_source"]["court_id"]
+            hit["_source"]["citation_string"] = courts_dict.get(court_id)
 
 
 def fill_position_mapping(
@@ -1313,9 +1292,7 @@ def build_join_fulltext_queries(
     if parent_fields:
         q_should.append(build_fulltext_query(parent_fields, value))
 
-    if q_should:
-        return Q("bool", should=q_should, minimum_should_match=1)
-    return []
+    return Q("bool", should=q_should, minimum_should_match=1) if q_should else []
 
 
 def build_has_child_filters(
@@ -1330,8 +1307,8 @@ def build_has_child_filters(
     """
 
     queries_list = []
-    if cd["type"] == SEARCH_TYPES.PEOPLE:
-        if child_type == "position":
+    if child_type == "position":
+        if cd["type"] == SEARCH_TYPES.PEOPLE:
             selection_method = cd.get("selection_method", "")
             court = cd.get("court", "").split()
             appointer = cd.get("appointer", "")
@@ -1347,8 +1324,8 @@ def build_has_child_filters(
             if appointer:
                 queries_list.extend(build_text_filter("appointer", appointer))
 
-    if cd["type"] in [SEARCH_TYPES.RECAP, SEARCH_TYPES.DOCKETS]:
-        if child_type == "recap_document":
+    elif child_type == "recap_document":
+        if cd["type"] in [SEARCH_TYPES.RECAP, SEARCH_TYPES.DOCKETS]:
             available_only = cd.get("available_only", "")
             description = cd.get("description", "")
             document_number = cd.get("document_number", "")
@@ -1471,8 +1448,7 @@ def do_es_feed_query(
         case _:
             s, _ = build_es_base_query(search_query, cd)
     s = s.sort(build_sort_results(cd))
-    response = s.extra(from_=0, size=rows).execute()
-    return response
+    return s.extra(from_=0, size=rows).execute()
 
 
 def build_full_join_es_queries(
@@ -1635,12 +1611,11 @@ def limit_inner_hits(
         result["child_remaining"] = False
         result["child_remaining_query_id"] = False
         try:
-            inner_hits = [
-                hit
-                for hit in result.meta["inner_hits"][
-                    f"filter_query_inner_{child_type}"
-                ]["hits"]["hits"]
-            ]
+            inner_hits = list(
+                result.meta["inner_hits"][f"filter_query_inner_{child_type}"][
+                    "hits"
+                ]["hits"]
+            )
         except KeyError:
             continue
 

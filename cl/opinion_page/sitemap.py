@@ -16,14 +16,14 @@ class OpinionSitemap(sitemaps.Sitemap):
         # and that have at least one citation, or that were published in the
         # last ten years and not yet cited.
         new_or_popular = Q(citation_count__gte=1) | Q(
-            date_filed__gt=datetime.today() - timedelta(days=365 * 10)
+            date_filed__gt=datetime.now() - timedelta(days=365 * 10)
         )
         return (
             OpinionCluster.objects.filter(
                 new_or_popular,
                 precedential_status=PRECEDENTIAL_STATUS.PUBLISHED,
                 blocked=False,
-                date_filed__gt=datetime.today() - timedelta(days=365 * 75),
+                date_filed__gt=datetime.now() - timedelta(days=365 * 75),
             )
             .only("date_modified", "pk", "slug")
             .order_by("pk")
@@ -47,8 +47,7 @@ class BlockedOpinionSitemap(sitemaps.Sitemap):
     def items(self) -> QuerySet:
         return (
             OpinionCluster.objects.filter(
-                blocked=True,
-                date_blocked__gt=datetime.today() - timedelta(days=30),
+                blocked=True, date_blocked__gt=datetime.now() - timedelta(days=30)
             )
             .only("date_modified", "pk", "slug")
             .order_by("pk")
@@ -65,7 +64,7 @@ class DocketSitemap(sitemaps.Sitemap):
     def items(self) -> QuerySet:
         # Give items ten days to get some views.
         new_or_popular = Q(view_count__gt=10) | Q(
-            date_filed__gt=datetime.today() - timedelta(days=30)
+            date_filed__gt=datetime.now() - timedelta(days=30)
         )
         return (
             Docket.objects.filter(
@@ -84,16 +83,15 @@ class DocketSitemap(sitemaps.Sitemap):
         view_count = obj.view_count
         priority = 0.5
         if view_count <= 1:
-            priority = 0.3
+            return 0.3
         elif 1 < view_count <= 10:
-            priority = 0.4
+            return 0.4
         elif 10 < view_count <= 100:
-            priority = 0.5
+            return 0.5
         elif 100 < view_count <= 1_000:
-            priority = 0.55
-        elif view_count > 1_000:
-            priority = 0.65
-        return priority
+            return 0.55
+        else:
+            return 0.65
 
 
 class BlockedDocketSitemap(sitemaps.Sitemap):
@@ -106,7 +104,7 @@ class BlockedDocketSitemap(sitemaps.Sitemap):
             Docket.objects.filter(
                 source__in=Docket.RECAP_SOURCES,
                 blocked=True,
-                date_blocked__gt=datetime.today() - timedelta(days=30),
+                date_blocked__gt=datetime.now() - timedelta(days=30),
             )
             .order_by("pk")
             .only("view_count", "date_modified", "pk", "slug")

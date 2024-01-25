@@ -78,10 +78,7 @@ def query_and_send_alerts_by_rate(rate: str) -> None:
         hits = []
         for alert, results in alerts.items():
             search_type = alert.alert_type
-            documents = []
-            for result in results:
-                documents.append(json_date_parser(result.document_content))
-
+            documents = [json_date_parser(result.document_content) for result in results]
             alerts_to_update.append(alert.pk)
 
             # Override order_by to show the latest items when clicking the
@@ -156,10 +153,9 @@ def delete_old_scheduled_alerts() -> int:
         date_created__lt=unsent_older_than,
         hit_status=SCHEDULED_ALERT_HIT_STATUS.SCHEDULED,
     ).delete()
-    deleted_items = (
+    return (
         scheduled_sent_hits_to_delete[0] + scheduled_unsent_hits_to_delete[0]
     )
-    return deleted_items
 
 
 class Command(VerboseCommand):

@@ -11,15 +11,8 @@ def trunc(s: str, length: int, ellipsis: Optional[str] = None) -> str:
     If an ellipsis is provided, the right most space is used that allows the
     addition of the ellipsis without being longer than length.
     """
-    if ellipsis:
-        ellipsis_length = len(ellipsis)
-    else:
-        ellipsis_length = 0
-
-    if len(s) <= length:
-        # Do not ellipsize if the item is not truncated.
-        return s
-    else:
+    ellipsis_length = len(ellipsis) if ellipsis else 0
+    if len(s) > length:
         # find the rightmost space using a zero-indexed (+1) length minus the
         # length of the ellipsis.
         rightmost_space_index = length - ellipsis_length + 1
@@ -27,10 +20,11 @@ def trunc(s: str, length: int, ellipsis: Optional[str] = None) -> str:
         if end == -1:
             # no spaces found, just use max position
             end = length - ellipsis_length
-        s = s[0:end]
+        s = s[:end]
         if ellipsis:
             s = f"{s}{ellipsis}"
-        return s
+    # Do not ellipsize if the item is not truncated.
+    return s
 
 
 def filter_invalid_XML_chars(input: str) -> str:
@@ -78,13 +72,7 @@ def removeLeftMargin(s: str) -> str:
     lines_out = []
     for line in lines:
         numLSpaces = len(line) - len(line.lstrip())
-        if numLSpaces < mode:
-            # Strip only that number of spaces
-            line_out = line[numLSpaces:]
-        elif numLSpaces >= mode:
-            # Strip off the mode number of spaces
-            line_out = line[mode:]
-
+        line_out = line[numLSpaces:] if numLSpaces < mode else line[mode:]
         lines_out.append(line_out)
 
     return "\n".join(lines_out)

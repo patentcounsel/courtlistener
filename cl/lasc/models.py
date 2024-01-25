@@ -126,8 +126,7 @@ class CaseIDQuerySet(models.query.QuerySet):
 
     def filter(self, *args, **kwargs):
         clone = self._clone()
-        case_id = kwargs.pop("case_id", None)
-        if case_id:
+        if case_id := kwargs.pop("case_id", None):
             case_id_parts = case_id.split(";")
             clone.query.add_q(
                 Q(
@@ -413,8 +412,7 @@ class DocumentImage(AbstractDateTimeModel):
     def document_map_url(self):
         """The URL to the document in the Media Access Portal."""
         base_url = "https://media.lacourt.org/api/AzureApi/"
-        path_template = "ViewDocument/%s/%s"
-        return base_url + path_template % (self.docket.case_id, self.doc_id)
+        return f"{base_url}ViewDocument/{self.docket.case_id}/{self.doc_id}"
 
     def __str__(self) -> str:
         return f"Scanned PDF  {self.doc_id} for {self.docket.docket_number}"

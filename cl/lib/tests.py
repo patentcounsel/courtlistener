@@ -173,9 +173,9 @@ class TestMakeFQ(SimpleTestCase):
             ("1 NOT 2", "1 NOT 2"),
             ("cause:sympathy", "cause AND sympathy"),
         )
+        field = "f"
+        key = "key"
         for test in test_pairs:
-            field = "f"
-            key = "key"
             self.assertEqual(
                 make_fq(cd={key: test[0]}, field=field, key=key),
                 f"{field}:({test[1]})",
@@ -356,7 +356,7 @@ class TestMimeLookup(SimpleTestCase):
             "pdf/2015/1/1/voutila_v._bonvini.pdf": "application/pdf",
             "txt/2015/1/1/voutila_v._bonvini.txt": "text/plain",
         }
-        for test_path in tests.keys():
+        for test_path in tests:
             self.assertEqual(tests.get(test_path), lookup_mime_type(test_path))
 
 
@@ -381,8 +381,7 @@ class TestMaintenanceMiddleware(TestCase):
         self.assertEqual(
             r.status_code,
             HTTP_503_SERVICE_UNAVAILABLE,
-            "Did not get correct status code. Got: %s instead of %s"
-            % (r.status_code, HTTP_503_SERVICE_UNAVAILABLE),
+            f"Did not get correct status code. Got: {r.status_code} instead of {HTTP_503_SERVICE_UNAVAILABLE}",
         )
 
     async def test_staff_can_get_through(self) -> None:

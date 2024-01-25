@@ -19,7 +19,7 @@ async def get_case_title(cluster: OpinionCluster) -> str:
 
 
 def make_docket_title(docket: Docket) -> str:
-    title = ", ".join(
+    return ", ".join(
         [
             s
             for s in [
@@ -29,7 +29,6 @@ def make_docket_title(docket: Docket) -> str:
             if s and s.strip()
         ]
     )
-    return title
 
 
 async def core_docket_data(
@@ -73,9 +72,10 @@ async def core_docket_data(
 async def user_has_alert(
     user: Union[AnonymousUser, User], docket: Docket
 ) -> bool:
-    has_alert = False
-    if user.is_authenticated:
-        has_alert = await DocketAlert.objects.filter(
+    return (
+        await DocketAlert.objects.filter(
             docket=docket, user=user, alert_type=DocketAlert.SUBSCRIPTION
         ).aexists()
-    return has_alert
+        if user.is_authenticated
+        else False
+    )

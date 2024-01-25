@@ -79,7 +79,7 @@ def import_tn_corpus(
     :param ocr_available: Whether you can do OCR during the import
     :return: None
     """
-    ready = False if skip_until else True
+    ready = not skip_until
 
     if log:
         logging.getLogger().setLevel(logging.INFO)
@@ -115,8 +115,7 @@ def import_tn_corpus(
         if len(ops) > 0:
             op = ops[0]
             logging.warning(
-                "Document already in database. See: %s at %s"
-                % (op.get_absolute_url(), op.cluster.case_name)
+                f"Document already in database. See: {op.get_absolute_url()} at {op.cluster.case_name}"
             )
 
         docket, opinion, cluster, citations = make_objects(

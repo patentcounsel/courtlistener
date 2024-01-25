@@ -171,15 +171,12 @@ def get_docket_notes_and_tags_by_user(
     tags assigned to the docket.
     """
 
-    notes = None
     note = (
         Note.objects.filter(docket_id=d_pk, user_id=user_pk)
         .only("notes")
         .first()
     )
-    if note and note.notes:
-        notes = note.notes
-
+    notes = note.notes if note and note.notes else None
     user_tags = list(UserTag.objects.filter(user_id=user_pk, dockets__id=d_pk))
     return notes, user_tags
 
@@ -301,10 +298,7 @@ def send_alert_and_webhook(
 
     if recap_email_recipients is None:
         recap_email_recipients = []
-    recap_email_user_only = False
-    if des_pks:
-        recap_email_user_only = True
-
+    recap_email_user_only = bool(des_pks)
     (
         da_recipients,
         webhook_recipients,
@@ -475,7 +469,7 @@ def send_search_alert_emails(
 
     for email_to_send in email_alerts_to_send:
         user_id, hits = email_to_send
-        if not len(hits) > 0:
+        if len(hits) <= 0:
             continue
 
         alert_user: UserProfile.user = User.objects.get(pk=user_id)
@@ -562,14 +556,9 @@ def process_percolator_response(response: PercolatorResponseType) -> None:
             email_alerts_to_send.append((alert_user.pk, hits))
             rt_alerts_to_send.append(alert_triggered.pk)
 
-        else:
-            # Schedule DAILY, WEEKLY and MONTHLY Alerts
-            if alert_hits_limit_reached(
-                alert_triggered.pk, alert_triggered.user.pk
-            ):
-                # Skip storing hits for this alert-user combination because
-                # the SCHEDULED_ALERT_HITS_LIMIT has been reached.
-                continue
+        elif not alert_hits_limit_reached(
+            alert_triggered.pk, alert_triggered.user.pk
+        ):
             scheduled_hits_to_create.append(
                 ScheduledAlertHit(
                     user=alert_triggered.user,

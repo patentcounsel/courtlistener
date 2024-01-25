@@ -17,6 +17,7 @@ manage.py columbia_merge --debug --csv-file /opt/courtlistener/cl/assets/media/t
 
 
 """
+
 import os.path
 import re
 from difflib import SequenceMatcher
@@ -80,9 +81,7 @@ VALID_UPDATED_DOCKET_SOURCES = [
 
 
 VALID_MERGED_SOURCES = [
-    key
-    for key in dict(SOURCES.NAMES).keys()
-    if SOURCES.COLUMBIA_ARCHIVE in key
+    key for key in dict(SOURCES.NAMES) if SOURCES.COLUMBIA_ARCHIVE in key
 ]
 
 
@@ -122,7 +121,7 @@ def get_cl_opinion_content(cluster_id: int) -> list[dict[Any, Any]]:
     opinions_from_cluster = Opinion.objects.filter(cluster_id=cluster_id)
     is_harvard = False
 
-    for i, op in enumerate(opinions_from_cluster):
+    for op in opinions_from_cluster:
         content = ""
         if len(op.xml_harvard) > 1:
             content = op.xml_harvard
@@ -174,31 +173,29 @@ def update_matching_opinions(
             # Prettify the name a bit
             author_str = titlecase(find_just_name(file_byline.strip(":")))
 
-        if op.author_str == "":
             # We have an empty author name
-            if author_str:
+        if author_str:
+            if op.author_str == "":
                 # Store the name extracted from the author tag
                 op.author_str = author_str
-        else:
-            if author_str:
-                if (
+            elif (
                     find_just_name(op.author_str).lower()
                     != find_just_name(author_str).lower()
                 ):
-                    # last resort, use distance between words to solve typos
-                    s = SequenceMatcher(
-                        None,
-                        find_just_name(op.author_str).lower(),
-                        find_just_name(author_str).lower(),
-                    )
-                    if s.ratio() >= 0.6:
-                        # columbia names are better
-                        op.author_str = author_str
-                    else:
-                        raise AuthorException("Authors don't match")
-                elif any(s.isupper() for s in op.author_str.split(",")):
-                    # Some names are uppercase, update with processed names
+                # last resort, use distance between words to solve typos
+                s = SequenceMatcher(
+                    None,
+                    find_just_name(op.author_str).lower(),
+                    find_just_name(author_str).lower(),
+                )
+                if s.ratio() >= 0.6:
+                    # columbia names are better
                     op.author_str = author_str
+                else:
+                    raise AuthorException("Authors don't match")
+            elif any(s.isupper() for s in op.author_str.split(",")):
+                # Some names are uppercase, update with processed names
+                op.author_str = author_str
 
         converted_text = convert_columbia_html(
             file_opinion["opinion"], columbia_pos
@@ -281,13 +278,12 @@ def merge_date_filed(
     :return: empty dict or dict with new value for field
     """
 
-    columbia_date_filed = columbia_data.get("date_filed")
-    cluster_date_filed = cluster.date_filed
+    if columbia_date_filed := columbia_data.get("date_filed"):
+        cluster_date_filed = cluster.date_filed
 
-    if columbia_date_filed:
-        if cluster.docket.source == Docket.SCRAPER:
             # Give preference to columbia data
-            if columbia_date_filed != cluster_date_filed:
+        if columbia_date_filed != cluster_date_filed:
+            if cluster.docket.source == Docket.SCRAPER:
                 return {"date_filed": columbia_date_filed}
 
     return {}
@@ -331,24 +327,23 @@ def merge_field(
     cl_value = getattr(cluster, field_name)
     if not file_value:
         return {}
-    if file_value and not cl_value:
+    if not cl_value:
         return {field_name: file_value}
-    if file_value and cl_value:
-        if field_name in ["syllabus", "posture"]:
-            return merge_long_fields(
-                field_name, (file_value, cl_value), cluster.id
-            )
-        elif field_name == "attorneys":
-            return merge_strings(field_name, (file_value, cl_value))
-        elif field_name == "judges":
-            return merge_judges(
-                (file_value, cl_value),
-                cluster.id,
-                is_columbia=True,
-                skip_judge_merger=skip_judge_merger,
-            )
-        else:
-            logger.info(f"Field not considered in the process: {field_name}")
+    if field_name in {"syllabus", "posture"}:
+        return merge_long_fields(
+            field_name, (file_value, cl_value), cluster.id
+        )
+    elif field_name == "attorneys":
+        return merge_strings(field_name, (file_value, cl_value))
+    elif field_name == "judges":
+        return merge_judges(
+            (file_value, cl_value),
+            cluster.id,
+            is_columbia=True,
+            skip_judge_merger=skip_judge_merger,
+        )
+    else:
+        logger.info(f"Field not considered in the process: {field_name}")
 
     return {}
 
@@ -510,12 +505,9 @@ def process_cluster(
                     columbia_data["panel_date"],
                 )
 
-            # Merge results into a single dict
-            data_to_update = (
+            if data_to_update := (
                 merged_data | case_names_to_update | date_filed_to_update
-            )
-
-            if data_to_update:
+            ):
                 # all data is updated at once
                 OpinionCluster.objects.filter(id=cluster_id).update(
                     **data_to_update
@@ -553,7 +545,7 @@ def merge_columbia_into_cl(options) -> None:
     skip_until, limit = options["skip_until"], options["limit"]
     skip_judge_merger = options["skip_judge_merger"]
     total_processed = 0
-    start = False if skip_until else True
+    start = not skip_until
 
     logger.info(f"Loading csv file at {csv_filepath}")
     data = pd.read_csv(

@@ -49,7 +49,7 @@ def identify_parallel_citations(
     Return a set of tuples. Each tuple represents a series of parallel
     citations. These will usually be length two, but not necessarily.
     """
-    if len(citations) == 0:
+    if not citations:
         return set()
     citation_indexes = [c.index for c in citations]
     parallel_citation = [citations[0]]
@@ -176,7 +176,7 @@ def store_opinion_citations_and_update_parentheticals(
 
     opinion_ids_to_update = {
         o.pk
-        for o in citation_resolutions.keys()
+        for o in citation_resolutions
         if o.pk not in currently_cited_opinions
     }
 

@@ -94,8 +94,6 @@ class Command(VerboseCommand):
             f"Creating dummy data. Making at least {count} "
             "objects of each type."
         )
-        parent_id = options["parent_id"] if options["parent_id"] else None
-
         if options["make_objects"] is None:
             # Just make a bit of everything. Start with a docket and build all
             # the children below it.
@@ -118,6 +116,8 @@ class Command(VerboseCommand):
                 logger.info(f"Making {count} {note}")
                 Factory.create_batch(count)
         else:
+            parent_id = options["parent_id"] if options["parent_id"] else None
+
             # The user requested something specific. Build that thing and all
             # the parents above it.
             for object_type in options["make_objects"]:

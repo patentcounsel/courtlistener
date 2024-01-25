@@ -181,9 +181,5 @@ class TestExtras(SimpleTestCase):
         This is important because some objects in Django templates are dicts...
         others are objects.
         """
-        obj = {}
-        d = ""
-        obj["date_start"] = d
-        obj["date_granularity_start"] = GRANULARITY_DAY
-
+        obj = {"date_start": "", "date_granularity_start": GRANULARITY_DAY}
         self.assertEqual(granular_date(obj, "date_start"), "Unknown")

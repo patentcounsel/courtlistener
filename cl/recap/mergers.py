@@ -77,9 +77,7 @@ def confirm_docket_number_core_lookup_match(
     """
     existing_docket_number = clean_docket_number(docket.docket_number)
     incoming_docket_number = clean_docket_number(docket_number)
-    if existing_docket_number != incoming_docket_number:
-        return None
-    return docket
+    return None if existing_docket_number != incoming_docket_number else docket
 
 
 async def find_docket_object(
@@ -125,14 +123,10 @@ async def find_docket_object(
                 {"docket_number_core": docket_number_core},
             ]
         )
-    else:
-        # Finally, as a last resort, we can try the docket number. It might not
-        # match b/c of punctuation or whatever, but we can try. Avoid lookups
-        # by blank docket_number values.
-        if docket_number:
-            lookups.append(
-                {"pacer_case_id": None, "docket_number": docket_number},
-            )
+    elif docket_number:
+        lookups.append(
+            {"pacer_case_id": None, "docket_number": docket_number},
+        )
 
     for kwargs in lookups:
         ds = Docket.objects.filter(court_id=court_id, **kwargs).using(using)
@@ -519,20 +513,15 @@ def calculate_recap_sequence_numbers(docket_entries: list, court_id: str):
         if prev is not None and current_date_filed == prev_date_filed:
             # Previous item has same date. Increment the sequence number.
             de["recap_sequence_index"] = prev["recap_sequence_index"] + 1
-            de["recap_sequence_number"] = make_recap_sequence_number(
-                current_date_filed, de["recap_sequence_index"]
-            )
-            continue
         else:
             # prev is None --> First item on the list; OR
             # current is different than previous --> Changed date.
             # Take same action: Reset the index & assign it.
             de["recap_sequence_index"] = 1
-            de["recap_sequence_number"] = make_recap_sequence_number(
-                current_date_filed, de["recap_sequence_index"]
-            )
-            continue
-
+        de["recap_sequence_number"] = make_recap_sequence_number(
+            current_date_filed, de["recap_sequence_index"]
+        )
+        continue
     # Cleanup
     [de.pop("recap_sequence_index", None) for de in docket_entries]
 
@@ -762,13 +751,10 @@ async def add_docket_entries(
         date_filed, time_filed = localize_date_and_time(
             d.court_id, docket_entry["date_filed"]
         )
-        if not time_filed:
-            # If not time data is available, compare if date_filed changed if
-            # so restart time_filed to None, otherwise keep the current time.
-            if de.date_filed != docket_entry["date_filed"]:
-                de.time_filed = None
-        else:
+        if time_filed:
             de.time_filed = time_filed
+        elif de.date_filed != docket_entry["date_filed"]:
+            de.time_filed = None
         de.date_filed = date_filed
         de.pacer_sequence_number = (
             docket_entry.get("pacer_seq_no") or de.pacer_sequence_number
@@ -840,8 +826,7 @@ async def add_docket_entries(
             rds_created.append(rd)
         except RECAPDocument.MultipleObjectsReturned:
             logger.info(
-                "Multiple recap documents found for document entry number'%s' "
-                "while processing '%s'" % (docket_entry["document_number"], d)
+                f"""Multiple recap documents found for document entry number'{docket_entry["document_number"]}' while processing '{d}'"""
             )
             if params["document_type"] == RECAPDocument.ATTACHMENT:
                 continue
@@ -882,8 +867,7 @@ async def add_docket_entries(
                 False,
             )
 
-    known_filing_dates = set(filter(None, known_filing_dates))
-    if known_filing_dates:
+    if known_filing_dates := set(filter(None, known_filing_dates)):
         await Docket.objects.filter(pk=d.pk).aupdate(
             date_last_filing=max(known_filing_dates)
         )
@@ -1344,8 +1328,7 @@ def add_claims_to_docket(d, new_claims, tag_names=None):
 def get_data_from_att_report(text: str, court_id: str) -> Dict[str, str]:
     att_page = AttachmentPage(map_cl_to_pacer_id(court_id))
     att_page._parse_text(text)
-    att_data = att_page.data
-    return att_data
+    return att_page.data
 
 
 def get_data_from_appellate_att_report(
@@ -1359,8 +1342,7 @@ def get_data_from_appellate_att_report(
     """
     att_page = AppellateAttachmentPage(map_cl_to_pacer_id(court_id))
     att_page._parse_text(text)
-    att_data = att_page.data
-    return att_data
+    return att_page.data
 
 
 async def add_tags_to_objs(tag_names: List[str], objs: Any) -> QuerySet:
@@ -1470,8 +1452,8 @@ async def clean_duplicate_attachment_entries(
         for attachment in attachment_dicts:
             attachment_number = attachment["attachment_number"]
             pacer_doc_id = attachment["pacer_doc_id"]
-            if dupe.pacer_doc_id == pacer_doc_id:
-                if dupe.attachment_number != attachment_number:
+            if dupe.attachment_number != attachment_number:
+                if dupe.pacer_doc_id == pacer_doc_id:
                     await dupe.adelete()
     if not await dupe_doc_ids.aexists():
         return
@@ -1526,23 +1508,23 @@ async def merge_attachment_page_data(
             "docket_entry", "docket_entry__docket"
         ).aget(**params)
     except RECAPDocument.MultipleObjectsReturned as exc:
-        if pacer_case_id:
-            duplicate_rd_queryset = RECAPDocument.objects.filter(**params)
-            rd_with_pdf_queryset = duplicate_rd_queryset.filter(
-                is_available=True
-            ).exclude(filepath_local="")
-            if await rd_with_pdf_queryset.aexists():
-                keep_rd = await rd_with_pdf_queryset.alatest("date_created")
-            else:
-                keep_rd = await duplicate_rd_queryset.alatest("date_created")
-            await duplicate_rd_queryset.exclude(pk=keep_rd.pk).adelete()
-            main_rd = await RECAPDocument.objects.select_related(
-                "docket_entry", "docket_entry__docket"
-            ).aget(**params)
-        else:
+        if not pacer_case_id:
             # Unclear how to proceed and we don't want to associate this data
             # with the wrong case. We must punt.
             raise exc
+        duplicate_rd_queryset = RECAPDocument.objects.filter(**params)
+        rd_with_pdf_queryset = duplicate_rd_queryset.filter(
+            is_available=True
+        ).exclude(filepath_local="")
+        keep_rd = (
+            await rd_with_pdf_queryset.alatest("date_created")
+            if await rd_with_pdf_queryset.aexists()
+            else await duplicate_rd_queryset.alatest("date_created")
+        )
+        await duplicate_rd_queryset.exclude(pk=keep_rd.pk).adelete()
+        main_rd = await RECAPDocument.objects.select_related(
+            "docket_entry", "docket_entry__docket"
+        ).aget(**params)
     except RECAPDocument.DoesNotExist as exc:
         # Can't find the docket to associate with the attachment metadata
         # It may be possible to go look for orphaned documents at this stage

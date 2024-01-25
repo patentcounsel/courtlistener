@@ -95,16 +95,12 @@ async def court_homepage(request: HttpRequest, pk: str) -> HttpResponse:
         template = "court.html"
 
     for court in courts:
-        if "tennwork" in court:
-            results = f"results_{court}"
-        else:
-            results = "results"
+        results = f"results_{court}" if "tennwork" in court else "results"
         response = await sync_to_async(do_search)(
             request.GET.copy(),
             override_params={
-                "filed_after": (
-                    datetime.datetime.today() - datetime.timedelta(days=28)
-                ),
+                "filed_after": datetime.datetime.now()
+                - datetime.timedelta(days=28),
                 "order_by": "dateFiled desc",
                 "court": court,
             },
@@ -185,15 +181,14 @@ async def redirect_og_lookup(request: HttpRequest) -> HttpResponse:
         return HttpResponseRedirect(
             f"https://storage.courtlistener.com/{file_path}?no-og=1"
         )
-    else:
-        rd = await rd_filter.afirst()
-        return await view_recap_document(
-            request,
-            docket_id=rd.docket_entry.docket_id,
-            doc_num=rd.document_number,
-            att_num=rd.attachment_number,
-            is_og_bot=True,
-        )
+    rd = await rd_filter.afirst()
+    return await view_recap_document(
+        request,
+        docket_id=rd.docket_entry.docket_id,
+        doc_num=rd.document_number,
+        att_num=rd.attachment_number,
+        is_og_bot=True,
+    )
 
 
 async def redirect_docket_recap(
@@ -484,19 +479,23 @@ async def view_recap_document(
     # Check if the user has requested automatic redirection to the document
     rd_download_redirect = request.GET.get("redirect_to_download", False)
     redirect_or_modal = request.GET.get("redirect_or_modal", False)
-    if rd_download_redirect or redirect_or_modal:
-        # Check if the document is available from CourtListener and
-        # if it is, redirect to the local document
-        # if it isn't, if pacer_url is available and
-        # rd_download_redirect is True, redirect to PACER. If redirect_or_modal
-        # is True set redirect_to_pacer_modal to True to open the modal.
-        if rd.is_available:
-            return HttpResponseRedirect(rd.filepath_local.url)
-        else:
-            if rd.pacer_url and rd_download_redirect:
-                return HttpResponseRedirect(rd.pacer_url)
-            if rd.pacer_url and redirect_or_modal:
-                redirect_to_pacer_modal = True
+    if rd_download_redirect and not rd.is_available and rd.pacer_url:
+        return HttpResponseRedirect(rd.pacer_url)
+    elif (
+        rd_download_redirect
+        and not rd.is_available
+        or not rd_download_redirect
+        and redirect_or_modal
+        and not rd.is_available
+        and not rd.pacer_url
+        or not rd_download_redirect
+        and not redirect_or_modal
+    ):
+        pass
+    elif rd_download_redirect or rd.is_available:
+        return HttpResponseRedirect(rd.filepath_local.url)
+    else:
+        redirect_to_pacer_modal = True
 
     title = await make_rd_title(rd)
     rd = await make_thumb_if_needed(request, rd)
@@ -654,14 +653,12 @@ async def view_opinion(request: HttpRequest, pk: int, _: str) -> HttpResponse:
         "representative",
     )[:3]
 
-    # Identify opinions updated/added in partnership with v|lex for 3 years
-    sponsored = False
-    if (
-        cluster.date_created.date() > datetime.datetime(2022, 6, 1).date()
-        and cluster.filepath_json_harvard
-    ):
-        sponsored = True
-
+    sponsored = bool(
+        (
+            cluster.date_created.date() > datetime.datetime(2022, 6, 1).date()
+            and cluster.filepath_json_harvard
+        )
+    )
     view_authorities_url = reverse(
         "view_authorities", args=[cluster.pk, cluster.slug]
     )
@@ -1077,9 +1074,7 @@ async def attempt_reporter_variation(
     # Make a slugified variations dict
     slugified_variations = {}
     for variant, canonicals in VARIATIONS_ONLY.items():
-        slugged_canonicals = []
-        for canonical in canonicals:
-            slugged_canonicals.append(slugify(canonical))
+        slugged_canonicals = [slugify(canonical) for canonical in canonicals]
         slugified_variations[str(slugify(variant))] = slugged_canonicals
 
     # Look up the user's request in the variations dict
@@ -1142,8 +1137,7 @@ async def citation_redirector(
     # By adding this extra test we can keep the rest of the logic untouched
     #
     if not volume and not page:
-        citations = eyecite.get_citations(reporter)
-        if citations:
+        if citations := eyecite.get_citations(reporter):
             c = citations[0]
             # We slugify reporter so that the test further down will
             # pass.
@@ -1185,13 +1179,13 @@ async def citation_redirector(
 
     # We have a reporter (show volumes in it), a volume (show cases in
     # it), or a citation (show matching citation(s))
-    if proper_reporter and volume and page:
+    if volume and page:
         return await citation_handler(request, proper_reporter, volume, page)
-    elif proper_reporter and volume and page is None:
+    elif volume and page is None:
         return await reporter_or_volume_handler(
             request, proper_reporter, volume
         )
-    elif proper_reporter and volume is None and page is None:
+    elif volume is None and page is None:
         return await reporter_or_volume_handler(request, proper_reporter)
     return HttpResponse(status=500)
 
@@ -1201,18 +1195,7 @@ async def citation_homepage(request: HttpRequest) -> HttpResponse:
     """Show the citation homepage"""
     if request.method == "POST":
         form = CitationRedirectorForm(request.POST)
-        if await sync_to_async(form.is_valid)():
-            # Redirect to the page as a GET instead of a POST
-            cd = form.cleaned_data
-            kwargs = {"reporter": cd["reporter"]}
-            if cd["volume"]:
-                kwargs["volume"] = cd["volume"]
-            if cd["page"]:
-                kwargs["page"] = cd["page"]
-            return HttpResponseRedirect(
-                reverse("citation_redirector", kwargs=kwargs)
-            )
-        else:
+        if not await sync_to_async(form.is_valid)():
             # Error in form, somehow.
             return TemplateResponse(
                 request,
@@ -1220,6 +1203,16 @@ async def citation_homepage(request: HttpRequest) -> HttpResponse:
                 {"show_homepage": True, "form": form, "private": False},
             )
 
+        # Redirect to the page as a GET instead of a POST
+        cd = form.cleaned_data
+        kwargs = {"reporter": cd["reporter"]}
+        if cd["volume"]:
+            kwargs["volume"] = cd["volume"]
+        if cd["page"]:
+            kwargs["page"] = cd["page"]
+        return HttpResponseRedirect(
+            reverse("citation_redirector", kwargs=kwargs)
+        )
     form = CitationRedirectorForm()
     reporter_dict = await make_reporter_dict()
     return TemplateResponse(
@@ -1238,40 +1231,37 @@ async def citation_homepage(request: HttpRequest) -> HttpResponse:
 async def block_item(request: HttpRequest) -> HttpResponse:
     """Block an item from search results using AJAX"""
     user = await request.auser()  # type: ignore[attr-defined]
-    if is_ajax(request) and user.is_superuser:
-        obj_type = request.POST["type"]
-        pk = request.POST["id"]
-
-        if obj_type not in ["docket", "cluster"]:
-            return HttpResponseBadRequest(
-                f"This view can not handle the provided type"
-            )
-
-        cluster = None
-        if obj_type == "cluster":
-            # Block the cluster
-            cluster = await aget_object_or_404(OpinionCluster, pk=pk)
-            cluster.blocked = True
-            cluster.date_blocked = now()
-            await cluster.asave(index=False)
-
-        docket_pk = (
-            pk
-            if obj_type == "docket"
-            else cluster.docket_id
-            if cluster is not None
-            else None
-        )
-        if not docket_pk:
-            return HttpResponse("It worked")
-
-        d = await aget_object_or_404(Docket, pk=docket_pk)
-        d.blocked = True
-        d.date_blocked = now()
-        await d.asave()
-
-        return HttpResponse("It worked")
-    else:
+    if not is_ajax(request) or not user.is_superuser:
         return HttpResponseNotAllowed(
             permitted_methods=["POST"], content="Not an ajax request"
         )
+    obj_type = request.POST["type"]
+    pk = request.POST["id"]
+
+    if obj_type not in ["docket", "cluster"]:
+        return HttpResponseBadRequest("This view can not handle the provided type")
+
+    cluster = None
+    if obj_type == "cluster":
+        # Block the cluster
+        cluster = await aget_object_or_404(OpinionCluster, pk=pk)
+        cluster.blocked = True
+        cluster.date_blocked = now()
+        await cluster.asave(index=False)
+
+    docket_pk = (
+        pk
+        if obj_type == "docket"
+        else cluster.docket_id
+        if cluster is not None
+        else None
+    )
+    if not docket_pk:
+        return HttpResponse("It worked")
+
+    d = await aget_object_or_404(Docket, pk=docket_pk)
+    d.blocked = True
+    d.date_blocked = now()
+    await d.asave()
+
+    return HttpResponse("It worked")

@@ -40,8 +40,7 @@ def build_date_range(start_year: int, end_year: int) -> str:
     """Build a date range to be handed off to a solr query."""
     start = datetime(start_year, 1, 1)
     end = datetime(end_year, 12, 31)
-    date_range = f"[{start.isoformat()}Z TO {end.isoformat()}Z]"
-    return date_range
+    return f"[{start.isoformat()}Z TO {end.isoformat()}Z]"
 
 
 def make_name_param(
@@ -116,8 +115,7 @@ def get_years_from_reporter(
     start_year = 1750
     end_year = date.today().year
 
-    edition_guess = citation.edition_guess
-    if edition_guess:
+    if edition_guess := citation.edition_guess:
         if hasattr(edition_guess.start, "year"):
             start_year = edition_guess.start.year
         if hasattr(edition_guess.end, "year"):
@@ -205,12 +203,11 @@ def filter_by_matching_antecedent(
         return None
 
     antecedent_guess = strip_punct(antecedent_guess)
-    candidates: List[Opinion] = []
-
-    for o in opinion_candidates:
-        if antecedent_guess in best_case_name(o.cluster):
-            candidates.append(o)
-
+    candidates: List[Opinion] = [
+        o
+        for o in opinion_candidates
+        if antecedent_guess in best_case_name(o.cluster)
+    ]
     # Remove duplicates and only accept if one candidate remains
     candidates = list(set(candidates))
     return candidates[0] if len(candidates) == 1 else None
@@ -233,14 +230,6 @@ def resolve_fullcase_citation(
             except (Opinion.DoesNotExist, Opinion.MultipleObjectsReturned):
                 pass
 
-    # Case 2: FullLawCitation (TODO: implement support)
-    elif type(full_citation) is FullLawCitation:
-        pass
-
-    # Case 3: FullJournalCitation (TODO: implement support)
-    elif type(full_citation) is FullJournalCitation:
-        pass
-
     # If no Opinion can be matched, just return a placeholder object
     return NO_MATCH_RESOURCE
 
@@ -254,13 +243,14 @@ def resolve_shortcase_citation(
         o for c, o in resolved_full_cites if type(o) is Opinion
     ]
     for opinion in matched_opinions:
-        for c in opinion.cluster.citations.all():
+        candidates.extend(
+            opinion
+            for c in opinion.cluster.citations.all()
             if (
                 short_citation.corrected_reporter() == c.reporter
                 and short_citation.groups["volume"] == str(c.volume)
-            ):
-                candidates.append(opinion)
-
+            )
+        )
     # Remove duplicates
     candidates = list(set(candidates))
 

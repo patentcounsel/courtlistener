@@ -199,21 +199,14 @@ def merge_form_with_courts(
     court_count = str(
         len([status for status in checked_statuses if status is True])
     )
-    court_count_human = court_count
-    if all_facets_selected:
-        court_count_human = "All"
-
+    court_count_human = "All" if all_facets_selected else court_count
     for field in search_form:
-        if no_facets_selected:
-            for court in courts:
+        for court in courts:
+            if no_facets_selected:
                 court.checked = True
-        else:
-            for court in courts:
-                # We're merging two lists, so we have to do a nested loop
-                # to find the right value.
-                if f"court_{court.pk}" == field.html_name:
-                    court.checked = field.value()
-                    break
+            elif f"court_{court.pk}" == field.html_name:
+                court.checked = field.value()
+                break
 
     # Build the dict with jurisdiction keys and arrange courts into tabs
     court_tabs: Dict[str, List] = {
@@ -331,8 +324,7 @@ def make_fq(
             clean_q.append(f'"{word}"' if " " in word else word)
             needs_default_conjunction = True
 
-    fq = f"{field}:({' '.join(clean_q)})"
-    return fq
+    return f"{field}:({' '.join(clean_q)})"
 
 
 def make_boolean_fq(cd: CleanData, field: str, key: str) -> str:
@@ -353,11 +345,9 @@ def make_fq_proximity_query(cd: CleanData, field: str, key: str) -> str:
     # Remove all valid Solr tokens, replacing with a space.
     q = re.sub(r'[\^\?\*:\(\)!"~\-\[\]]', " ", cd[key])
 
-    # Remove all valid Solr words
-    tokens = []
-    for token in q.split():
-        if token not in ["AND", "OR", "NOT", "TO"]:
-            tokens.append(token)
+    tokens = [
+        token for token in q.split() if token not in ["AND", "OR", "NOT", "TO"]
+    ]
     return f"{field}:(\"{' '.join(tokens)}\"~5)"
 
 
@@ -367,18 +357,18 @@ def make_date_query(
     after: datetime,
 ) -> str:
     """Given the cleaned data from a form, return a valid Solr fq string"""
-    if any([before, after]):
-        if hasattr(after, "strftime"):
-            date_filter = f"[{after.isoformat()}T00:00:00Z TO "
-        else:
-            date_filter = "[* TO "
-        if hasattr(before, "strftime"):
-            date_filter = f"{date_filter}{before.isoformat()}T23:59:59Z]"
-        else:
-            date_filter = f"{date_filter}*]"
-    else:
+    if not any([before, after]):
         # No date filters were requested
         return ""
+    date_filter = (
+        f"[{after.isoformat()}T00:00:00Z TO "
+        if hasattr(after, "strftime")
+        else "[* TO "
+    )
+    if hasattr(before, "strftime"):
+        date_filter = f"{date_filter}{before.isoformat()}T23:59:59Z]"
+    else:
+        date_filter = f"{date_filter}*]"
     return f"{query_field}:{date_filter}"
 
 
@@ -386,10 +376,7 @@ def make_cite_count_query(cd: CleanData) -> str:
     """Given the cleaned data from a form, return a valid Solr fq string"""
     start = cd.get("cited_gt") or "*"
     end = cd.get("cited_lt") or "*"
-    if start == "*" and end == "*":
-        return ""
-    else:
-        return f"citeCount:[{start} TO {end}]"
+    return "" if start == "*" and end == "*" else f"citeCount:[{start} TO {end}]"
 
 
 def get_selected_field_string(cd: CleanData, prefix: str) -> str:
@@ -409,14 +396,11 @@ def get_selected_field_string(cd: CleanData, prefix: str) -> str:
         # All the boxes are checked. No need for filtering.
         return ""
     else:
-        selected_field_string = " OR ".join(selected_fields)
-        return selected_field_string
+        return " OR ".join(selected_fields)
 
 
 def make_boost_string(fields: Dict[str, float]) -> str:
-    qf_array = []
-    for k, v in fields.items():
-        qf_array.append(f"{k}^{v}")
+    qf_array = [f"{k}^{v}" for k, v in fields.items()]
     return " ".join(qf_array)
 
 
@@ -710,9 +694,7 @@ def add_filter_queries(main_params: SearchParam, cd) -> None:
     if len(selected_courts_string) > 0:
         main_fq.append(f"court_exact:({selected_courts_string})")
 
-    # If a param has been added to the fq variables, then we add them to the
-    # main_params var. Otherwise, we don't, as doing so throws an error.
-    if len(main_fq) > 0:
+    if main_fq:
         if "fq" in main_params:
             main_params["fq"].extend(main_fq)
         else:
@@ -741,10 +723,7 @@ def add_grouping(main_params: SearchParam, cd: CleanData, group: bool) -> None:
         else:
             main_params["fq"] = [group_fq]
 
-    elif (
-        cd["type"] in [SEARCH_TYPES.RECAP, SEARCH_TYPES.DOCKETS]
-        and group is True
-    ):
+    elif cd["type"] in [SEARCH_TYPES.RECAP, SEARCH_TYPES.DOCKETS] and group:
         docket_query = re.search(r"docket_id:\d+", cd["q"])
         if docket_query:
             group_sort = map_to_docket_entry_sorting(main_params["sort"])
@@ -847,8 +826,7 @@ def cleanup_main_query(query_string: str) -> str:
             cleaned_items.append(item)
             continue
 
-        m = re.match(r"(\d{2})(cv|cr|mj|po)(\d{1,5})", item)
-        if m:
+        if m := re.match(r"(\d{2})(cv|cr|mj|po)(\d{1,5})", item):
             # It's a docket number missing hyphens, e.g. 19cv38374
             item = "-".join(m.groups())
 
@@ -1019,24 +997,23 @@ async def add_depth_counts(
     :return The OpinionCluster if the lookup was successful
     """
     cites_query_matches = re.findall(r"cites:\((\d+)\)", search_data["q"])
-    if len(cites_query_matches) == 1:
-        try:
-            cited_cluster = await OpinionCluster.objects.aget(
-                sub_opinions__pk=cites_query_matches[0]
-            )
-        except OpinionCluster.DoesNotExist:
-            return None
-        else:
-            for result in search_results.object_list:
-                result[
-                    "citation_depth"
-                ] = await get_citation_depth_between_clusters(
-                    citing_cluster_pk=result["cluster_id"],
-                    cited_cluster_pk=cited_cluster.pk,
-                )
-            return cited_cluster
-    else:
+    if len(cites_query_matches) != 1:
         return None
+    try:
+        cited_cluster = await OpinionCluster.objects.aget(
+            sub_opinions__pk=cites_query_matches[0]
+        )
+    except OpinionCluster.DoesNotExist:
+        return None
+    else:
+        for result in search_results.object_list:
+            result[
+                "citation_depth"
+            ] = await get_citation_depth_between_clusters(
+                citing_cluster_pk=result["cluster_id"],
+                cited_cluster_pk=cited_cluster.pk,
+            )
+        return cited_cluster
 
 
 async def get_citing_clusters_with_cache(

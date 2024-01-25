@@ -66,19 +66,16 @@ class Command(VerboseCommand):
         count based on the DB.
         """
         super().handle(*args, **options)
-        index_during_processing = False
-        if options["index"] == "concurrently":
-            index_during_processing = True
-
+        index_during_processing = options["index"] == "concurrently"
         clusters = OpinionCluster.objects.filter(citation_count__gt=0)
         if options.get("doc_id"):
             clusters = clusters.filter(pk__in=options["doc_id"])
 
         for cluster in clusters.iterator():
-            count = 0
-            for sub_opinion in cluster.sub_opinions.all():
-                count += sub_opinion.citing_opinions.all().count()
-
+            count = sum(
+                sub_opinion.citing_opinions.all().count()
+                for sub_opinion in cluster.sub_opinions.all()
+            )
             cluster.citation_count = count
             cluster.save(index=index_during_processing)
 

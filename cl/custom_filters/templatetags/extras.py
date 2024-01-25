@@ -98,13 +98,12 @@ def granular_date(
             return date_format(d, format="F, Y")
         elif granularity == GRANULARITY_YEAR:
             return date_format(d, format="Y")
-    else:
-        if granularity == GRANULARITY_DAY:
-            return date_format(d, format="Y-m-d")
-        elif granularity == GRANULARITY_MONTH:
-            return date_format(d, format="Y-m")
-        elif granularity == GRANULARITY_YEAR:
-            return date_format(d, format="Y")
+    elif granularity == GRANULARITY_DAY:
+        return date_format(d, format="Y-m-d")
+    elif granularity == GRANULARITY_MONTH:
+        return date_format(d, format="Y-m")
+    elif granularity == GRANULARITY_YEAR:
+        return date_format(d, format="Y")
 
     raise ValidationError(
         "Fell through date granularity template tag. This could mean that you "
@@ -157,7 +156,7 @@ def url_replace(request, value):
 def sort_caret(request, value) -> SafeString:
     current = request.GET.get("order_by", "*UP*")
     caret = '&nbsp;<i class="gray fa fa-angle-up"></i>'
-    if current == value or current == f"-{value}":
+    if current in [value, f"-{value}"]:
         if current.startswith("-"):
             caret = '&nbsp;<i class="gray fa fa-angle-down"></i>'
     return mark_safe(caret)

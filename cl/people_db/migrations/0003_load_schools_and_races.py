@@ -12,10 +12,7 @@ def load_fixture(apps, schema_editor):
     # Every time tests are run, the migrations are applied, importing this
     # data. Because the standard school data has more than 6,000 items, it
     # takes too long to import, and instead we import a miniature version.
-    if 'test' in sys.argv:
-        fixture = 'school_data_truncated'
-    else:
-        fixture = 'schools_data'
+    fixture = 'school_data_truncated' if 'test' in sys.argv else 'schools_data'
     load_migration_fixture(apps, schema_editor, fixture, 'people_db')
 
     # Do races

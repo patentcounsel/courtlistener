@@ -154,9 +154,10 @@ def do_many(
         total = limit
     elif not random_order:
         logger.info("Getting an initial file count...")
-        total = 0
-        for _, _, file_names in os.walk(dir_path):
-            total += len(fnmatch.filter(file_names, "*.xml"))
+        total = sum(
+            len(fnmatch.filter(file_names, "*.xml"))
+            for _, _, file_names in os.walk(dir_path)
+        )
     else:
         total = None
     # go through the files, yielding parsed files and printing status updates as
@@ -183,28 +184,13 @@ def do_many(
         )
         min_dates = get_min_nocite()
 
-    if courtdates:
-        start_dates = get_courtdates()
-    else:
-        start_dates = None
-
+    start_dates = get_courtdates() if courtdates else None
     # check if skipping first columbias cases
 
-    if skip_newcases:
-        skiplist = get_path_list()
-    else:
-        skiplist = set()
-
+    skiplist = get_path_list() if skip_newcases else set()
     # start/resume functionality
-    if startfolder is not None:
-        skipfolder = True
-    else:
-        skipfolder = False
-    if startfile is not None:
-        skipfile = True
-    else:
-        skipfile = False
-
+    skipfolder = startfolder is not None
+    skipfile = startfile is not None
     for folder in folders:
         if skipfolder:
             if startfolder is not None:
@@ -285,8 +271,7 @@ def file_generator(dir_path, random_order=False, limit=None):
     else:
         for root, dir_names, file_names in os.walk(dir_path):
             shuffle(dir_names)
-            names = fnmatch.filter(file_names, "*.xml")
-            if names:
+            if names := fnmatch.filter(file_names, "*.xml"):
                 shuffle(names)
                 yield os.path.join(root, names[0]).replace("\\", "/")
                 break

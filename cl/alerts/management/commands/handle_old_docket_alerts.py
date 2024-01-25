@@ -47,34 +47,31 @@ def build_user_report(user, delete=False):
             threshold_date = max(threshold_date, alert.docket.date_last_filing)
 
         days_since_last_touch = (dt_as_local_date(now()) - threshold_date).days
-        if delete:
-            if days_since_last_touch >= 187:
-                report.disabled_alerts.append(
-                    DocketAlertReportObject(alert, alert.docket)
-                )
-                # Toggle docket alert to unsubscription type
-                alert.alert_type = DocketAlert.UNSUBSCRIPTION
-                alert.save()
-            elif 180 <= days_since_last_touch <= 186:
-                report.very_old_alerts.append(
-                    DocketAlertReportObject(alert, alert.docket)
-                )
-            elif 90 <= days_since_last_touch <= 96:
-                report.old_alerts.append(
-                    DocketAlertReportObject(alert, alert.docket)
-                )
-        else:
-            # Useful for first run, when ew *only* want to warn and not to
-            # disable.
-            if days_since_last_touch >= 180:
-                report.very_old_alerts.append(
-                    DocketAlertReportObject(alert, alert.docket)
-                )
-            elif 90 <= days_since_last_touch <= 96:
-                report.old_alerts.append(
-                    DocketAlertReportObject(alert, alert.docket)
-                )
-
+        if delete and days_since_last_touch >= 187:
+            report.disabled_alerts.append(
+                DocketAlertReportObject(alert, alert.docket)
+            )
+            # Toggle docket alert to unsubscription type
+            alert.alert_type = DocketAlert.UNSUBSCRIPTION
+            alert.save()
+        elif (
+            delete
+            and 180 <= days_since_last_touch <= 186
+            or not delete
+            and days_since_last_touch >= 180
+        ):
+            report.very_old_alerts.append(
+                DocketAlertReportObject(alert, alert.docket)
+            )
+        elif (
+            delete
+            and 90 <= days_since_last_touch <= 96
+            or not delete
+            and 90 <= days_since_last_touch <= 96
+        ):
+            report.old_alerts.append(
+                DocketAlertReportObject(alert, alert.docket)
+            )
     return report
 
 

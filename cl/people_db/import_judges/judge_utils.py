@@ -34,10 +34,7 @@ def process_date(year, month, day):
 
 def process_date_string(date_input):
     """Return date as YYYY-MM-DD"""
-    if not date_input:
-        return None
-    date_object = datetime.strptime(date_input, "%Y-%m-%d")
-    return date_object
+    return None if not date_input else datetime.strptime(date_input, "%Y-%m-%d")
 
 
 C = Counter()  # for fixing school names.
@@ -52,11 +49,7 @@ def get_school(schoolname, testing=False):
     schools = School.objects.filter(name__iexact=schoolname)
     if len(schools) == 1:
         school = schools[0]
-        if school.is_alias_of is not None:
-            return school.is_alias_of
-        else:
-            return school
-
+        return school.is_alias_of if school.is_alias_of is not None else school
     # print('No exact matches: ' + schoolname + '. Running "contains".')
 
     schools = School.objects.filter(name__icontains=schoolname)
@@ -64,12 +57,7 @@ def get_school(schoolname, testing=False):
         schools = [x for x in schools if not x.is_alias_of]
     if len(schools) == 1:
         school = schools[0]
-        if school.is_alias_of is not None:
-            # print(schoolname,'matched to',school.is_alias_of)
-            return school.is_alias_of
-        else:
-            # print(schoolname,'matched to',school)
-            return school
+        return school.is_alias_of if school.is_alias_of is not None else school
     if len(schools) > 1:
         # print('Multiple matches:',schoolname,[x.name for x in schools])
         C[f"{schoolname},{','.join([x.name for x in schools])}"] += 1
@@ -93,12 +81,7 @@ def get_school(schoolname, testing=False):
     schools = School.objects.filter(name__icontains=normname)
     if len(schools) == 1:
         school = schools[0]
-        if school.is_alias_of is not None:
-            # print(schoolname,'matched to',school.is_alias_of)
-            return school.is_alias_of
-        else:
-            # print(schoolname,'matched to',school)
-            return school
+        return school.is_alias_of if school.is_alias_of is not None else school
     if len(schools) > 1:
         # print('Multiple normalized matches:',schoolname,[x.name for x in schools])
         C[f"{schoolname},{','.join([x.name for x in schools])}"] += 1
@@ -169,7 +152,7 @@ def get_degree_level(degstr):
         "cert": ["cjuris"],
     }
     deg = re.sub(r"[^a-z]+", "", degstr.lower())
-    for k in degdict.keys():
+    for k in degdict:
         if deg in degdict[k]:
             return k
 
@@ -220,10 +203,7 @@ def get_suffix(suffstr):
         "III": "3",
         "IV": "4",
     }
-    if suffstr:
-        return ""
-    else:
-        return suffdict[suffstr]
+    return "" if suffstr else suffdict[suffstr]
 
 
 def get_races(str_race):
@@ -248,10 +228,7 @@ def get_races(str_race):
         rawraces = [x.strip() for x in str_race.split("/")]
     else:
         rawraces = [str_race]
-    races = []
-    for rawrace in rawraces:
-        races.append(racedict[rawrace])
-    return races
+    return [racedict[rawrace] for rawrace in rawraces]
 
 
 def get_aba(abastr):
@@ -267,10 +244,7 @@ def get_aba(abastr):
             ]
         ]
     )
-    if not abastr:
-        return None
-    aba = abadict[abastr]
-    return aba
+    return None if not abastr else abadict[abastr]
 
 
 def get_select(state, year):
@@ -290,5 +264,4 @@ def get_gender(gender_str):
         "Male": "m",
         "Other": "o",
     }
-    gender = gender_dict[gender_str]
-    return gender
+    return gender_dict[gender_str]

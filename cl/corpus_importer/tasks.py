@@ -531,8 +531,7 @@ def process_free_opinion_result(
         return None
 
     if rd_created:
-        newly_enqueued = enqueue_docket_alert(d.pk)
-        if newly_enqueued:
+        if newly_enqueued := enqueue_docket_alert(d.pk):
             send_alert_and_webhook(d.pk, start_time)
 
     return {
@@ -647,9 +646,7 @@ def get_and_process_free_pdf(
         logger.info(f"{msg} Retrying.")
         raise self.retry(exc=exc)
 
-    pdf_bytes = None
-    if r:
-        pdf_bytes = r.content
+    pdf_bytes = r.content if r else None
     attachment_number = 0  # Always zero for free opinions
     success, msg = update_rd_metadata(
         self,
@@ -841,8 +838,7 @@ def upload_to_ia(
         # retrying. Just abort.
         return None
     logger.info(
-        "Item uploaded to IA with responses %s"
-        % [r.status_code for r in responses]
+        f"Item uploaded to IA with responses {[r.status_code for r in responses]}"
     )
     return responses
 
@@ -1268,8 +1264,7 @@ def get_docket_by_pacer_case_id(
 
     # Attempt a light docket look up, we'll do better after fetching more data
     pacer_case_id = data.get("pacer_case_id")
-    docket_pk = docket_pk or data.get("docket_pk")
-    if docket_pk:
+    if docket_pk := docket_pk or data.get("docket_pk"):
         d = Docket.objects.get(pk=docket_pk)
     else:
         try:
@@ -1722,7 +1717,7 @@ def get_document_number_for_appellate(
     # Document numbers from documents with attachments have the format
     # 1-1, 1-2, 1-3 in those cases the document number is the left number.
     document_number_split = document_number.split("-")
-    if not len(document_number_split) == 1:
+    if len(document_number_split) != 1:
         document_number = document_number_split[0]
 
     if len(document_number) > 9:
@@ -1753,9 +1748,7 @@ def is_pacer_doc_sealed(court_id: str, pacer_doc_id: str) -> bool:
     receipt_report = DownloadConfirmationPage(court_id, s)
     receipt_report.query(pacer_doc_id)
     data = receipt_report.data
-    if data == {}:
-        return True
-    return False
+    return data == {}
 
 
 def update_rd_metadata(
@@ -1788,14 +1781,11 @@ def update_rd_metadata(
 
     rd = RECAPDocument.objects.get(pk=rd_pk)
     if pdf_bytes is None:
-        if r_msg:
-            # Send a specific message all the way from Juriscraper
-            msg = f"{r_msg}: {court_id=}, {rd_pk=}"
-        else:
-            msg = (
-                "Unable to get PDF for RECAP Document '%s' "
-                "at '%s' with doc id '%s'" % (rd_pk, court_id, pacer_doc_id)
-            )
+        msg = (
+            f"{r_msg}: {court_id:=}, {rd_pk:=}"
+            if r_msg
+            else f"Unable to get PDF for RECAP Document '{rd_pk}' at '{court_id}' with doc id '{pacer_doc_id}'"
+        )
         self.request.chain = None
         return False, msg
 
@@ -1880,9 +1870,7 @@ def get_pacer_doc_by_rd(
     )
     court_id = rd.docket_entry.docket.court_id
 
-    pdf_bytes = None
-    if r:
-        pdf_bytes = r.content
+    pdf_bytes = r.content if r else None
     success, msg = update_rd_metadata(
         self,
         rd_pk,
@@ -1989,9 +1977,7 @@ def get_pacer_doc_by_rd_and_description(
     )
     court_id = rd.docket_entry.docket.court_id
 
-    pdf_bytes = None
-    if r:
-        pdf_bytes = r.content
+    pdf_bytes = r.content if r else None
     success, msg = update_rd_metadata(
         self,
         rd_pk,

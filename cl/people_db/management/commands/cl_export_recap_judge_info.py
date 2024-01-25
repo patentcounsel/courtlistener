@@ -73,19 +73,17 @@ class Command(VerboseCommand):
                         out[court.pk][name] = {
                             title: Counter([docket.date_filed.year]),
                         }
-                    else:
-                        # Person already exists.
-                        if title not in out[court.pk][name]:
-                            # Title not yet found.
-                            out[court.pk][name][title] = Counter(
-                                [docket.date_filed.year]
-                            )
-                        else:
-                            # Title already exists.
-                            out[court.pk][name][title][
-                                docket.date_filed.year
-                            ] += 1
+                    elif title in out[court.pk][name]:
+                        # Title already exists.
+                        out[court.pk][name][title][
+                            docket.date_filed.year
+                        ] += 1
 
+                    else:
+                        # Title not yet found.
+                        out[court.pk][name][title] = Counter(
+                            [docket.date_filed.year]
+                        )
         self.export_files(out)
 
     @staticmethod

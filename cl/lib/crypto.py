@@ -59,10 +59,10 @@ def sha1_of_file(file_path, buffer_size=2**16):
     sha1sum = hashlib.sha1()
     with open(file_path, "rb") as f:
         while True:
-            data = f.read(buffer_size)
-            if not data:
+            if data := f.read(buffer_size):
+                sha1sum.update(data)
+            else:
                 break
-            sha1sum.update(data)
     return sha1sum.hexdigest()
 
 
@@ -85,8 +85,7 @@ def sha1_activation_key(s):
     :return: A SHA1 activation key
     """
     salt = hashlib.sha1(str(random.random()).encode()).hexdigest()[:5]
-    activation_key = hashlib.sha1((salt + s).encode()).hexdigest()
-    return activation_key
+    return hashlib.sha1((salt + s).encode()).hexdigest()
 
 
 def sha256(s):

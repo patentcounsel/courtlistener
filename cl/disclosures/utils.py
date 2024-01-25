@@ -51,8 +51,4 @@ def make_disclosure_year_range(person: Person) -> str:
     years = sorted({fd.year for fd in person.disclosures})
 
     year_count = len(years)
-    if year_count <= 3:
-        # "2000", "2000 and 2001", "2000, 2001, and 2002"
-        return oxford_join(years)
-    else:
-        return f"{years[0]}-{years[-1]}"
+    return oxford_join(years) if year_count <= 3 else f"{years[0]}-{years[-1]}"

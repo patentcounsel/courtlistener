@@ -130,9 +130,7 @@ def is_opinion_published(soup: BeautifulSoup) -> bool:
     :param soup: The XML object
     :return: true if opinion is published
     """
-    opinion_tag = soup.find("opinion")
-
-    if opinion_tag:
+    if opinion_tag := soup.find("opinion"):
         if opinion_tag.get("unpublished") == "true":
             return False
         if opinion_tag.find("unpublished"):
@@ -194,11 +192,9 @@ def add_floating_opinion(
             # Use type of previous opinion if exists
             op_type = opinions[-1].get("type")
 
-    # Get rid of double spaces from floating content
-    opinion_content = re.sub(
+    if opinion_content := re.sub(
         " +", " ", "\n".join(floating_content)
-    ).strip()  # type: str
-    if opinion_content:
+    ).strip():
         opinions.append(
             {
                 "opinion": opinion_content,
@@ -227,58 +223,55 @@ def extract_columbia_opinions(
     order = 0
 
     # We iterate all content to look for all possible opinions
-    for i, content in enumerate(outer_opinion):  # type: int, Tag
+    for content in outer_opinion:
         if isinstance(content, NavigableString):
             # We found a raw string, store it
             floating_content.append(str(content))
-        else:
-            if content.name in SIMPLE_TAGS + [
+        elif content.name in SIMPLE_TAGS + [
                 "citation_line",
                 "opinion_byline",
                 "dissent_byline",
                 "concurrence_byline",
             ]:
-                # Ignore these tags, it will be processed later
-                continue
-            elif content.name in [
+            # Ignore these tags, it will be processed later
+            continue
+        elif content.name in [
                 "opinion_text",
                 "dissent_text",
                 "concurrence_text",
             ]:
-                if floating_content:
-                    # We have found an opinion, but there is floating
-                    # content, we create a dict with the opinion using the
-                    # floating content with default type = "opinion"
-                    opinions = add_floating_opinion(
-                        opinions, floating_content, order
-                    )
-                    floating_content = []
+            if floating_content:
+                # We have found an opinion, but there is floating
+                # content, we create a dict with the opinion using the
+                # floating content with default type = "opinion"
+                opinions = add_floating_opinion(
+                    opinions, floating_content, order
+                )
+                floating_content = []
 
-                byline = content.find_previous_sibling()
-                opinion_author = ""
-                if byline and "_byline" in byline.name:
-                    opinion_author = byline.get_text()
+            byline = content.find_previous_sibling()
+            opinion_author = ""
+            if byline and "_byline" in byline.name:
+                opinion_author = byline.get_text()
 
-                opinion_content = re.sub(
-                    " +", " ", content.decode_contents()
-                ).strip()
-                if opinion_content:
-                    # Now we create a dict with current opinion
-                    opinions.append(
-                        {
-                            "opinion": opinion_content,
-                            "order": order,
-                            "byline": opinion_author,
-                            "type": content.name.replace("_text", ""),
-                        }
-                    )
-                    order = order + 1
+            if opinion_content := re.sub(
+                " +", " ", content.decode_contents()
+            ).strip():
+                # Now we create a dict with current opinion
+                opinions.append(
+                    {
+                        "opinion": opinion_content,
+                        "order": order,
+                        "byline": opinion_author,
+                        "type": content.name.replace("_text", ""),
+                    }
+                )
+                order = order + 1
 
-            else:
-                if content.name not in SIMPLE_TAGS + ["syllabus"]:
-                    # We store content that is not inside _text tag and is
-                    # not in one of the known non-opinion tags
-                    floating_content.append(str(content))
+        elif content.name not in SIMPLE_TAGS + ["syllabus"]:
+            # We store content that is not inside _text tag and is
+            # not in one of the known non-opinion tags
+            floating_content.append(str(content))
 
     # Combine the new content into another opinion. great.
     if floating_content:
@@ -329,7 +322,7 @@ def merge_opinions(
             "per_curiam": is_per_curiam_opinion(opinion_content, None),
         }
         opinions.append(new_opinion)
-        current_order = current_order + 1
+        current_order += 1
 
     return opinions, current_order
 
@@ -345,9 +338,7 @@ def is_per_curiam_opinion(
     """
     if byline and "per curiam" in byline[:1000].lower():
         return True
-    if content and "per curiam" in content[:1000].lower():
-        return True
-    return False
+    return bool(content and "per curiam" in content[:1000].lower())
 
 
 def process_extracted_opinions(extracted_opinions: list) -> list:
@@ -444,9 +435,9 @@ def fix_reporter_caption(found_tags) -> None:
     :return: None
     """
     for found_tag in found_tags:
-        # Remove inner <citation> and <page_number> tags and content
-        extra_tags_to_remove = found_tag.findAll(["citation", "page_number"])
-        if extra_tags_to_remove:
+        if extra_tags_to_remove := found_tag.findAll(
+            ["citation", "page_number"]
+        ):
             for r in extra_tags_to_remove:
                 if r.next_sibling:
                     if isinstance(r.next_sibling, NavigableString):
@@ -483,7 +474,7 @@ def fetch_simple_tags(soup: BeautifulSoup, tag_name: str) -> list:
             for found_tag in found_tags
         ]
 
-        if tag_name in ["attorneys", "posture"]:
+        if tag_name in {"attorneys", "posture"}:
             # Replace multiple line breaks in this specific fields
             tag_data = [re.sub("\n+", " ", c) for c in tag_data]
 
@@ -555,11 +546,10 @@ def convert_columbia_html(text: str, opinion_index: int) -> str:
             "<footnote_body>.[\s\S]*?</footnote_body>", text
         )
         for fn in footnotes:
-            content = re.search(
+            if content := re.search(
                 "<footnote_body>(.[\s\S]*?)</footnote_body>", fn
-            )
-            if content:
-                rep = r'<div class="footnote">%s</div>' % content.group(1)
+            ):
+                rep = f'<div class="footnote">{content.group(1)}</div>'
                 text = text.replace(fn, rep)
 
         # Replace footnote numbers
@@ -642,9 +632,7 @@ def parse_dates(
                 text = months.split(raw_part.lower())[0].strip()
             # remove footnotes and non-alphanumeric characters
             text = re.sub(r"(\[fn.?\])", "", text)
-            text = re.sub(r"[^A-Za-z ]", "", text).strip()
-            # if we ended up getting some text, add it, else ignore it
-            if text:
+            if text := re.sub(r"[^A-Za-z ]", "", text).strip():
                 inner_dates.append((clean_string(text), d))
             else:
                 inner_dates.append((None, d))
@@ -731,8 +719,7 @@ def find_judges(opinions=None) -> str:
         opinions = []
     judges = []
     for op in opinions:
-        op_byline = op.get("byline")
-        if op_byline:
+        if op_byline := op.get("byline"):
             judge_name = extract_judge_last_name(op_byline)
             if judge_name not in judges:
                 judges.append(judge_name)

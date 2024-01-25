@@ -68,8 +68,7 @@ def make_dict_of_ftm_eids(use_pickle=True):
                 )
                 continue
             logger.info(
-                "  Found %s records in court %s and year %s"
-                % (len(data["records"]), courtid, year)
+                f'  Found {len(data["records"])} records in court {courtid} and year {year}'
             )
 
             for item in data["records"]:
@@ -190,15 +189,12 @@ def update_judges_by_solr(candidate_id_map, debug):
                                 "jurisdictions that the judge was in."
                             )
                             p.ftm_total_received += candidate["total"]
-                        if not debug:
-                            p.save()
                     else:
                         # No major problems. Proceed.
                         p.ftm_eid = candidate["eid"]
                         p.ftm_total_received = candidate["total"]
-                        if not debug:
-                            p.save()
-
+                    if not debug:
+                        p.save()
                 elif len(results) > 1:
                     match_stats[len(results)] += 1
                     logger.info(f"  Found more than one match: {results}")

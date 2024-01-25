@@ -116,7 +116,7 @@ def idb_row_transform(row):
 
     # Make a docket number. Combination of the two digit year and a five digit
     # 0-padded serial number.
-    row["docket_number"] = f"{row['DOCKET'][0:2]}-{row['DOCKET'][2:]}"
+    row["docket_number"] = f"{row['DOCKET'][:2]}-{row['DOCKET'][2:]}"
     return row
 
 
@@ -176,6 +176,5 @@ class Command(VerboseCommand):
             do_bulk_export(options)
         else:
             raise NotImplementedError(
-                "Unknown task: %s. Valid tasks are: %s"
-                % (options["task"], ", ".join(self.tasks))
+                f'Unknown task: {options["task"]}. Valid tasks are: {", ".join(self.tasks)}'
             )

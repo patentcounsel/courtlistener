@@ -68,13 +68,7 @@ class Command(VerboseCommand):
                 # It worked. Create a donation in our system as well.
                 results["amount"] += m_donation.monthly_donation_amount
                 results["users"].append(
-                    " - %s %s (%s): $%s"
-                    % (
-                        m_donation.donor.first_name,
-                        m_donation.donor.last_name,
-                        m_donation.donor.email,
-                        m_donation.monthly_donation_amount,
-                    )
+                    f" - {m_donation.donor.first_name} {m_donation.donor.last_name} ({m_donation.donor.email}): ${m_donation.monthly_donation_amount}"
                 )
                 Donation.objects.create(
                     donor=m_donation.donor,
@@ -86,8 +80,8 @@ class Command(VerboseCommand):
                     transaction_id=response.get("transaction_id"),
                     referrer=f"monthly_donation_{m_donation.pk}",
                 )
-                # Thank you email is triggered later when the stripe callback
-                # is triggered.
+                        # Thank you email is triggered later when the stripe callback
+                        # is triggered.
 
         if results["users"]:
             email: EmailType = emails["admin_donation_report"]

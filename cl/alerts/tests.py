@@ -392,7 +392,7 @@ class AlertAPITests(APITestCase):
         self.client = make_client(self.user_1.pk)
         self.client_2 = make_client(self.user_2.pk)
 
-    def tearDown(cls):
+    def tearDown(self):
         Alert.objects.all().delete()
 
     def make_an_alert(
@@ -848,7 +848,7 @@ class DocketAlertAPITests(APITestCase):
         self.client = make_client(self.user_1.pk)
         self.client_2 = make_client(self.user_2.pk)
 
-    def tearDown(cls):
+    def tearDown(self):
         DocketAlert.objects.all().delete()
 
     def make_a_docket_alert(
@@ -856,10 +856,7 @@ class DocketAlertAPITests(APITestCase):
         client,
         docket_pk=None,
     ):
-        docket_id = self.docket.id
-        if docket_pk:
-            docket_id = docket_pk
-
+        docket_id = docket_pk if docket_pk else self.docket.id
         data = {
             "docket": docket_id,
         }
@@ -1893,13 +1890,16 @@ class SearchAlertsOAESTests(ESIndexTestCase, TestCase):
         # The right alert type template is used.
         self.assertIn("oral argument", text_content)
 
-        # Extract HTML version.
-        html_content = None
-        for content, content_type in mail.outbox[alert_count - 1].alternatives:
-            if content_type == "text/html":
-                html_content = content
-                break
-
+        html_content = next(
+            (
+                content
+                for content, content_type in mail.outbox[
+                    alert_count - 1
+                ].alternatives
+                if content_type == "text/html"
+            ),
+            None,
+        )
         # Confirm that order_by is overridden in the 'View Full Results'
         # URL by dateArgued+desc.
         view_results_url = html.fromstring(str(html_content)).xpath(
@@ -2132,13 +2132,14 @@ class SearchAlertsOAESTests(ESIndexTestCase, TestCase):
         self.assertIn(self.search_alert_3.name, text_content)
         self.assertIn(self.search_alert_4.name, text_content)
 
-        # Extract HTML version.
-        html_content = None
-        for content, content_type in mail.outbox[0].alternatives:
-            if content_type == "text/html":
-                html_content = content
-                break
-
+        html_content = next(
+            (
+                content
+                for content, content_type in mail.outbox[0].alternatives
+                if content_type == "text/html"
+            ),
+            None,
+        )
         # Highlights are properly set in scheduled alerts.
         self.assertIn("<strong>19-5741</strong>", html_content)
 

@@ -83,18 +83,16 @@ class PodcastTest(ESIndexTestCase, TestCase):
             self.assertEqual(
                 node_count,
                 count,
-                msg="Did not find %s node(s) with XPath query: %s. "
-                "Instead found: %s" % (count, test, node_count),
+                msg=f"Did not find {count} node(s) with XPath query: {test}. Instead found: {node_count}",
             )
 
-        # Confirm items are ordered by dateArgued desc
-        pub_date_format = "%a, %d %b %Y %H:%M:%S %z"
         first_item_pub_date_str = str(
             xml_tree.xpath("//channel/item[1]/pubDate")[0].text  # type: ignore
         )
         second_item_pub_date_str = str(
             xml_tree.xpath("//channel/item[2]/pubDate")[0].text  # type: ignore
         )
+        pub_date_format = "%a, %d %b %Y %H:%M:%S %z"
         first_item_pub_date_dt = datetime.datetime.strptime(
             first_item_pub_date_str, pub_date_format
         )
@@ -132,8 +130,7 @@ class PodcastTest(ESIndexTestCase, TestCase):
             self.assertEqual(
                 node_count,
                 count,
-                msg="Did not find %s node(s) with XPath query: %s. "
-                "Instead found: %s" % (count, test, node_count),
+                msg=f"Did not find {count} node(s) with XPath query: {test}. Instead found: {node_count}",
             )
 
     def test_do_search_podcasts_have_content(self) -> None:

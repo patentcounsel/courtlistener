@@ -126,11 +126,10 @@ class Command(VerboseCommand):
         """
         # Remove nodes that are only connected weakly.
         for node in sub_graph.nodes():
-            has_good_edge = False
-            for a, b, data in sub_graph.edges([node], data=True):
-                if data["weight"] > EDGE_RELEVANCE_THRESHOLD:
-                    has_good_edge = True
-                    break
+            has_good_edge = any(
+                data["weight"] > EDGE_RELEVANCE_THRESHOLD
+                for a, b, data in sub_graph.edges([node], data=True)
+            )
             if not has_good_edge:
                 sub_graph.remove_node(node)
 
@@ -138,11 +137,9 @@ class Command(VerboseCommand):
             logger.info("  No strong edges found. Pass.\n")
             return
 
-        # Look up all remaining nodes in Solr, and make a (node, results) pair.
-        result_sets = []
-        for node in sub_graph.nodes():
-            result_sets.append((node, self.match_on_citation(node)))
-
+        result_sets = [
+            (node, self.match_on_citation(node)) for node in sub_graph.nodes()
+        ]
         if sum(len(results) for node, results in result_sets) == 0:
             logger.info("  Got no results for any citation. Pass.\n")
             return
@@ -177,13 +174,14 @@ class Command(VerboseCommand):
             logger.info("  Got duplicated reporter in citations. Pass.\n")
             return
 
-        # Get the cluster. By now we know all results have either 0 or 1 item.
-        oc = None
-        for node, results in result_sets:
-            if len(results) > 0:
-                oc = OpinionCluster.objects.get(pk=results[0]["cluster_id"])
-                break
-
+        oc = next(
+            (
+                OpinionCluster.objects.get(pk=results[0]["cluster_id"])
+                for node, results in result_sets
+                if len(results) > 0
+            ),
+            None,
+        )
         if oc is not None:
             # Update the cluster with all the nodes that had no results.
             for node, results in result_sets:

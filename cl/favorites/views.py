@@ -65,31 +65,30 @@ async def save_or_update_note(request: HttpRequest) -> HttpResponse:
     user already has a note for the document, it updates the note with the
     new information. If not, it creates a new note.
     """
-    if is_ajax(request):
-        note = await get_note(request)
-        if note is None:
-            return HttpResponseServerError(
-                "Unknown document, audio, docket or recap document id."
-            )
-
-        f = NoteForm(request.POST, instance=note)
-        if await sync_to_async(f.is_valid)():
-            new_note = await sync_to_async(f.save)(commit=False)
-            new_note.user = await request.auser()
-            try:
-                await sync_to_async(new_note.save)()
-            except IntegrityError:
-                # User already has this note.
-                return HttpResponse("It worked")
-        else:
-            # Validation errors fail silently. Probably could be better.
-            return HttpResponseServerError("Failure. Form invalid")
-
-        return HttpResponse("It worked")
-    else:
+    if not is_ajax(request):
         return HttpResponseNotAllowed(
             permitted_methods={"POST"}, content="Not an ajax request."
         )
+    note = await get_note(request)
+    if note is None:
+        return HttpResponseServerError(
+            "Unknown document, audio, docket or recap document id."
+        )
+
+    f = NoteForm(request.POST, instance=note)
+    if await sync_to_async(f.is_valid)():
+        new_note = await sync_to_async(f.save)(commit=False)
+        new_note.user = await request.auser()
+        try:
+            await sync_to_async(new_note.save)()
+        except IntegrityError:
+            # User already has this note.
+            return HttpResponse("It worked")
+    else:
+        # Validation errors fail silently. Probably could be better.
+        return HttpResponseServerError("Failure. Form invalid")
+
+    return HttpResponse("It worked")
 
 
 @sync_to_async
@@ -100,32 +99,30 @@ async def delete_note(request: HttpRequest) -> HttpResponse:
 
     Deletes a note for a user using an ajax call and post data.
     """
-    if is_ajax(request):
-        note = await get_note(request)
-        if note is None:
-            return HttpResponseServerError(
-                "Unknown document, audio, docket, or recap document id."
-            )
-        await note.adelete()
-
-        try:
-            if request.POST["message"] == "True":
-                # used on the profile page. True is a string, not a bool.
-                messages.add_message(
-                    request,
-                    messages.SUCCESS,
-                    "Your note was deleted successfully.",
-                )
-        except MultiValueDictKeyError:
-            # This happens if message isn't set.
-            pass
-
-        return HttpResponse("It worked.")
-
-    else:
+    if not is_ajax(request):
         return HttpResponseNotAllowed(
             permitted_methods=["POST"], content="Not an ajax request."
         )
+    note = await get_note(request)
+    if note is None:
+        return HttpResponseServerError(
+            "Unknown document, audio, docket, or recap document id."
+        )
+    await note.adelete()
+
+    try:
+        if request.POST["message"] == "True":
+            # used on the profile page. True is a string, not a bool.
+            messages.add_message(
+                request,
+                messages.SUCCESS,
+                "Your note was deleted successfully.",
+            )
+    except MultiValueDictKeyError:
+        # This happens if message isn't set.
+        pass
+
+    return HttpResponse("It worked.")
 
 
 async def view_tag(request, username, tag_name):

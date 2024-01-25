@@ -25,7 +25,7 @@ def _write_anon_item_to_disk(pacer_file: PacerHtmlFiles) -> None:
 
     # Save anonymized text to disk
     basename = os.path.basename(pacer_file.filepath.name)
-    out = Path(f"/storage/sample-data/dockets/{basename[0:2]}/{basename[2:]}")
+    out = Path(f"/storage/sample-data/dockets/{basename[:2]}/{basename[2:]}")
     out.parent.mkdir(exist_ok=True, parents=True)
     out.write_text(anon_text)
 

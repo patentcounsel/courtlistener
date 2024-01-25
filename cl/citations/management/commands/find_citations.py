@@ -171,17 +171,12 @@ class Command(VerboseCommand):
         sys.stdout.write(f"Graph size is {self.count:d} nodes.\n")
         sys.stdout.flush()
 
-        index_during_subtask = False
-        if self.index == "concurrently":
-            index_during_subtask = True
-
+        index_during_subtask = self.index == "concurrently"
         chunk = []
         chunk_size = 100
-        processed_count = 0
         throttle = CeleryThrottle(queue_name=queue_name)
-        for opinion_pk in opinion_pks:
+        for processed_count, opinion_pk in enumerate(opinion_pks, start=1):
             throttle.maybe_wait()
-            processed_count += 1
             last_item = self.count == processed_count
             chunk.append(opinion_pk)
             if processed_count % chunk_size == 0 or last_item:

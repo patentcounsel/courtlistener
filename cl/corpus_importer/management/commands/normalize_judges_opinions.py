@@ -20,21 +20,18 @@ def normalize_authors_in_opinions():
     for opinion in opinions_with_author_str.iterator():
         date_filed = opinion.cluster.docket.date_filed
         court_id = opinion.cluster.docket.court_id
-        # Search for person, living or deceased
-        person = async_to_sync(lookup_judge_by_last_name)(
+        if person := async_to_sync(lookup_judge_by_last_name)(
             opinion.author_str, court_id, date_filed, False
-        )
-
-        if not person:
-            logger.warning(
-                "Can't find person with this last name: "
-                f"{opinion.author_str} in opinion id: {opinion.pk}"
-            )
-        else:
+        ):
             # Set person object to author
             opinion.author = person
             opinion.save()
             logger.info(f"Author updated in opinion id: {opinion.pk}")
+        else:
+            logger.warning(
+                "Can't find person with this last name: "
+                f"{opinion.author_str} in opinion id: {opinion.pk}"
+            )
 
 
 def normalize_panel_in_opinioncluster():

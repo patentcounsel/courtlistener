@@ -71,8 +71,7 @@ class RobotsHeaderMiddleware:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        response = self.get_response(request)
-        return response
+        return self.get_response(request)
 
     def process_template_response(
         self,

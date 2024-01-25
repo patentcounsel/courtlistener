@@ -290,8 +290,7 @@ def find_all_judges(judge_text: str) -> [str]:
         r",\sand\s(((Van|VAN|De|DE|Da|DA)\s)?\b[A-Z][\w\-'']{2,}\b(\s(IV|I|II|III|V|Jr\.|Sr\.)[\s|\b])?)",
         cleaned_text,
     )
-    query = query1 + query2
-    if query:
+    if query := query1 + query2:
         matches = {
             name[0] for name in query if name[0].lower() not in NOT_JUDGE_WORDS
         }
@@ -320,38 +319,29 @@ def find_just_name(text: str) -> str:
     if "PER CURIAM" in cleaned_text.upper():
         return "PER CURIAM"
 
-    # OCR typically fails on the per curiam but this was an easy way to
-    # make sure we recognized it.
-    match_per_curiam = re.search(r"(Pe. C......)", cleaned_text)
-    if match_per_curiam:
+    if match_per_curiam := re.search(r"(Pe. C......)", cleaned_text):
         return "PER CURIAM"
 
-    # Next up is full names followed by a comma
-    match_titles = re.search(
+    if match_titles := re.search(
         "(((Van|VAN|De|DE|Da|DA)\s)?[A-Z][\w\-'']{2,}(\s(IV|I|II|III|V|Jr\.|JR\.|Sr\.|SR\.))?),",
         cleaned_text,
-    )
-    if match_titles:
+    ):
         return match_titles.group(1)
 
-    # Next the style of Justice First Last
-    match_honorifics = re.search(
+    if match_honorifics := re.search(
         r"(Justice|Judge|Commissioner|Honorable)\s([A-Z\-'']\w+(\s[A-Z\-'']\w+)?)",
         cleaned_text,
-    )
-    if match_honorifics:
+    ):
         return match_honorifics.group(2)
 
-    # Match Lastname, C. J.
-    match_last_first = re.search(r"([A-Z\-'']\w+)\s(C|J|P)\.", cleaned_text)
-    if match_last_first:
+    if match_last_first := re.search(
+        r"([A-Z\-'']\w+)\s(C|J|P)\.", cleaned_text
+    ):
         return match_last_first.group(1)
 
-    # Finally - default to the old style to handle stragglers
-    default = extract_judge_last_name(
+    if default := extract_judge_last_name(
         cleaned_text, keep_letter_case=True, require_capital=True
-    )
-    if default:
+    ):
         return " ".join(
             [name for name in default if name.lower() not in NOT_JUDGE_WORDS]
         )
@@ -408,7 +398,7 @@ def extract_judge_last_name(
         names.append(word)
 
     # identify which names are first and last names
-    if len(names) == 0:
+    if not names:
         return []
     elif len(names) == 1:
         return names
@@ -450,8 +440,6 @@ async def lookup_judge_by_full_name(
     if isinstance(name, str):
         name = HumanName(name)
 
-    filter_sets = []
-
     # check based on last name, court, and functioning flesh and blood first
     first_filter = [
         Q(name_last__iexact=name.last)
@@ -476,8 +464,7 @@ async def lookup_judge_by_full_name(
                 | Q(date_dob__isnull=True),
             ]
         )
-    filter_sets.append(first_filter)
-
+    filter_sets = [first_filter]
     # Then narrow by date
     if event_date is not None:
         filter_sets.append(
@@ -525,8 +512,7 @@ async def lookup_judge_by_full_name(
 
     # And finally, by suffix
     if name.suffix:
-        suffix = SUFFIX_LOOKUP.get(name.suffix.lower())
-        if suffix:
+        if suffix := SUFFIX_LOOKUP.get(name.suffix.lower()):
             filter_sets.append(
                 [
                     Q(name_suffix__iexact=suffix)
@@ -653,12 +639,7 @@ def sort_judge_list(judges: QuerySet, search_terms: Set[str]) -> QuerySet:
         if count == highest_match:
             judge_dict[judge.id] = count
 
-    # Create list of Judge IDs that have the highest match count
-    judge_pks = []
-    for k, v in judge_dict.items():
-        if v == highest_match:
-            judge_pks.append(k)
-
+    judge_pks = [k for k, v in judge_dict.items() if v == highest_match]
     # Return the filtered queryset and sort by name_last
     return judges.filter(pk__in=judge_pks).order_by("name_last")
 
@@ -674,12 +655,14 @@ def lookup_judge_by_name_components(queryset: QuerySet, s: str) -> QuerySet:
     search_terms = s.split()[:7]
     search_args = []
     for term in search_terms:
-        for query in (
-            "name_first__istartswith",
-            "name_last__istartswith",
-            "name_middle__istartswith",
-            "name_suffix__istartswith",
-        ):
-            search_args.append(Q(**{query: term}))
+        search_args.extend(
+            Q(**{query: term})
+            for query in (
+                "name_first__istartswith",
+                "name_last__istartswith",
+                "name_middle__istartswith",
+                "name_suffix__istartswith",
+            )
+        )
     judges = queryset.filter(reduce(operator.or_, search_args))
     return sort_judge_list(judges, set(search_terms))

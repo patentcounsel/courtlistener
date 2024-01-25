@@ -71,12 +71,7 @@ def cached_sitemap(
         except PageNotAnInteger:
             raise Http404(f"No page '{page}'")
 
-        if len(urls) == site.limit:
-            # Full sitemap. Cache it a long time.
-            cache_length = 60 * 60 * 24 * 180
-        else:
-            # Partial sitemap. Short cache.
-            cache_length = 60 * 60 * 24
+        cache_length = 60 * 60 * 24 * 180 if len(urls) == site.limit else 60 * 60 * 24
         cache.set(cache_key, urls, cache_length)
 
     lastmod = None

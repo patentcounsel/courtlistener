@@ -84,6 +84,5 @@ def get_pacer_cookie_from_cache(
     """
     if not r:
         r = make_redis_interface("CACHE", decode_responses=False)
-    pickled_cookie = r.get(session_key % user_pk)
-    if pickled_cookie:
+    if pickled_cookie := r.get(session_key % user_pk):
         return pickle.loads(pickled_cookie)

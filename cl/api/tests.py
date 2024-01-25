@@ -193,8 +193,8 @@ class ApiQueryCountTests(TransactionTestCase):
             # Test issue 2066, ensuring that we ignore empty filters.
             path = reverse("docketentry-list", kwargs={"version": "v3"})
             self.client.get(path, {"docket__id": ""})
+            bad_query = 'IN (SELECT U0."id" FROM "search_docket" U0)'
             for query in ctx.captured_queries:
-                bad_query = 'IN (SELECT U0."id" FROM "search_docket" U0)'
                 if bad_query in query["sql"]:
                     self.fail(
                         "DRF made a nasty query we thought we "
@@ -264,9 +264,7 @@ class ApiEventCreationTestCase(TestCase):
         self.flush_stats()
 
     def flush_stats(self) -> None:
-        # Flush existing stats (else previous tests cause issues)
-        keys = self.r.keys("api:*")
-        if keys:
+        if keys := self.r.keys("api:*"):
             self.r.delete(*keys)
 
     def hit_the_api(self) -> None:
@@ -1112,9 +1110,7 @@ class WebhooksMilestoneEventsTest(TestCase):
         self.flush_stats()
 
     def flush_stats(self) -> None:
-        # Flush existing stats
-        keys = self.r.keys("webhook:*")
-        if keys:
+        if keys := self.r.keys("webhook:*"):
             self.r.delete(*keys)
 
     @mock.patch(

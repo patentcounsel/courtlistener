@@ -25,7 +25,7 @@ def clear_queue(queue_name: str):
         for pri in DEFAULT_PRIORITY_STEPS
     ]
     r = make_redis_interface("CELERY")
-    return sum([r.delete(x) for x in priority_names])
+    return sum(r.delete(x) for x in priority_names)
 
 
 def make_queue_name_for_pri(queue: str, pri: int) -> str:

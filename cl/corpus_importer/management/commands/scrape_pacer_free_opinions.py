@@ -73,12 +73,11 @@ def get_next_date_range(
 
 
 def mark_court_in_progress(court_id: str, d: date) -> QuerySet:
-    log = PACERFreeDocumentLog.objects.create(
+    return PACERFreeDocumentLog.objects.create(
         status=PACERFreeDocumentLog.SCRAPE_IN_PROGRESS,
         date_queried=d,
         court_id=map_pacer_to_cl_id(court_id),
     )
-    return log
 
 
 def get_and_save_free_document_reports(options: OptionsType) -> None:
@@ -167,16 +166,15 @@ def get_and_save_free_document_reports(options: OptionsType) -> None:
             mark_court_done_on_date(status, pacer_court_id, next_end_d)
 
             if status == PACERFreeDocumentLog.SCRAPE_SUCCESSFUL:
-                if next_end_d >= today.date():
-                    logger.info(
-                        "Got all document references for '%s'.", pacer_court_id
-                    )
-                    # Break from while loop, onwards to next court
-                    break
-                else:
+                if next_end_d < today.date():
                     # More dates to do; let it continue
                     continue
 
+                logger.info(
+                    "Got all document references for '%s'.", pacer_court_id
+                )
+                # Break from while loop, onwards to next court
+                break
             elif status == PACERFreeDocumentLog.SCRAPE_FAILED:
                 logger.error(
                     "Encountered critical error on %s "
@@ -209,8 +207,7 @@ def get_pdfs(options: OptionsType) -> None:
         task_name += " and indexing"
     logger.info(f"{task_name} {count} items from PACER.")
     throttle = CeleryThrottle(queue_name=q)
-    completed = 0
-    for row in rows.iterator():
+    for completed, row in enumerate(rows.iterator(), start=1):
         throttle.maybe_wait()
         c = chain(
             process_free_opinion_result.si(
@@ -224,7 +221,6 @@ def get_pdfs(options: OptionsType) -> None:
         if index:
             c = c | add_items_to_solr.s("search.RECAPDocument").set(queue=q)
         c.apply_async()
-        completed += 1
         if completed % 1000 == 0:
             logger.info(
                 f"Sent {completed}/{count} tasks to celery for {task_name} so far."
@@ -271,8 +267,7 @@ class Command(VerboseCommand):
     def valid_actions(self, s: str) -> Callable:
         if s.lower() not in self.VALID_ACTIONS:
             raise argparse.ArgumentTypeError(
-                "Unable to parse action. Valid actions are: %s"
-                % (", ".join(self.VALID_ACTIONS.keys()))
+                f'Unable to parse action. Valid actions are: {", ".join(self.VALID_ACTIONS.keys())}'
             )
 
         return self.VALID_ACTIONS[s]
@@ -282,8 +277,7 @@ class Command(VerboseCommand):
             "--action",
             type=self.valid_actions,
             required=True,
-            help="The action you wish to take. Valid choices are: %s"
-            % (", ".join(self.VALID_ACTIONS.keys())),
+            help=f'The action you wish to take. Valid choices are: {", ".join(self.VALID_ACTIONS.keys())}',
         )
         parser.add_argument(
             "--queue",

@@ -52,7 +52,6 @@ def add_directory(options):
     :return: None
     """
     dir_glob = options["directory_glob"]
-    skip_until = options["skip_until"]
     if dir_glob is None:
         print(
             "--directory-glob is a required parameter when the "
@@ -61,7 +60,7 @@ def add_directory(options):
     else:
         dir_glob = options["directory_glob"]
         fps = sorted(glob(dir_glob))
-        if skip_until:
+        if skip_until := options["skip_until"]:
             # Remove items from the list until the skip_until value is hit.
             try:
                 skip_index = fps.index(skip_until)
@@ -73,7 +72,7 @@ def add_directory(options):
                     "%s",
                     skip_until,
                     dir_glob,
-                    "\n  ".join(fps[0:3]),
+                    "\n  ".join(fps[:3]),
                 )
                 raise
 
@@ -133,8 +132,7 @@ class Command(VerboseCommand):
     def valid_actions(self, s):
         if s.lower() not in self.VALID_ACTIONS:
             raise argparse.ArgumentTypeError(
-                "Unable to parse action. Valid actions are: %s"
-                % (", ".join(self.VALID_ACTIONS.keys()))
+                f'Unable to parse action. Valid actions are: {", ".join(self.VALID_ACTIONS.keys())}'
             )
 
         return self.VALID_ACTIONS[s]
@@ -144,8 +142,7 @@ class Command(VerboseCommand):
             "--action",
             type=self.valid_actions,
             required=True,
-            help="The action you wish to take. Valid choices are: %s"
-            % (", ".join(self.VALID_ACTIONS.keys())),
+            help=f'The action you wish to take. Valid choices are: {", ".join(self.VALID_ACTIONS.keys())}',
         )
         parser.add_argument(
             "--queue",

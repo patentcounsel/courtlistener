@@ -17,9 +17,7 @@ appellate_bankr_d_num_regex = r"(\d\d)-(\d+)"
 
 def is_docket_number(value: str) -> bool:
     pattern = rf"{dist_d_num_regex}|{appellate_bankr_d_num_regex}"
-    if re.match(pattern, value):
-        return True
-    return False
+    return bool(re.match(pattern, value))
 
 
 def clean_docket_number(docket_number: str | None) -> str:
@@ -55,10 +53,7 @@ def clean_docket_number(docket_number: str | None) -> str:
     # Match all the valid bankruptcy and appellate docket numbers at the
     # beginning of a string, after a blank space or after a comma.
     bankr_m = re.findall(r"(?<![^ ,])\d\d-\d+", docket_number)
-    if len(bankr_m) == 1:
-        return bankr_m[0]
-
-    return ""
+    return bankr_m[0] if len(bankr_m) == 1 else ""
 
 
 def make_docket_number_core(docket_number: Optional[str]) -> str:
@@ -87,12 +82,12 @@ def make_docket_number_core(docket_number: Optional[str]) -> str:
 
     cleaned_docket_number = clean_docket_number(docket_number)
 
-    district_m = re.search(dist_d_num_regex, cleaned_docket_number)
-    if district_m:
+    if district_m := re.search(dist_d_num_regex, cleaned_docket_number):
         return f"{district_m.group(1)}{int(district_m.group(2)):05d}"
 
-    bankr_m = re.search(appellate_bankr_d_num_regex, cleaned_docket_number)
-    if bankr_m:
+    if bankr_m := re.search(
+        appellate_bankr_d_num_regex, cleaned_docket_number
+    ):
         # Pad to six characters because some courts have a LOT of bankruptcies
         return f"{bankr_m.group(1)}{int(bankr_m.group(2)):06d}"
 
@@ -116,7 +111,7 @@ def make_lasc_path(instance, filename):
     Start with the `root` node, and use the current date as the subdirectories.
     """
     return os.path.join(
-        "lasc-data", f"{instance.sha1[0:2]}", f"{instance.sha1[2:]}.json"
+        "lasc-data", f"{instance.sha1[:2]}", f"{instance.sha1[2:]}.json"
     )
 
 
@@ -159,11 +154,7 @@ def make_pdf_path(instance, filename, thumbs=False):
     elif type(instance) == LASCPDF:
         slug = slugify(trunc(filename, 40))
         root = f"/us/state/ca/lasc/{instance.docket_number}/"
-        file_name = "gov.ca.lasc.%s.%s.%s.pdf" % (
-            instance.docket_number,
-            instance.document_id,
-            slug,
-        )
+        file_name = f"gov.ca.lasc.{instance.docket_number}.{instance.document_id}.{slug}.pdf"
 
         return os.path.join(root, file_name)
     else:
@@ -328,23 +319,18 @@ def validate_supervisor(instance):
     - Supervisor field can only be completed when the position is that of a
       clerk.
     """
-    sup = instance.supervisor
-    if sup:
+    if sup := instance.supervisor:
         if not sup.is_judge:
             raise ValidationError(
                 {
-                    "supervisor": "The supervisor field can only be set to a "
-                    "judge, but '%s' does not appear to have ever "
-                    "been a judge." % sup.name_full
+                    "supervisor": f"The supervisor field can only be set to a judge, but '{sup.name_full}' does not appear to have ever been a judge."
                 }
             )
 
-    if sup and not instance.is_clerkship:
-        raise ValidationError(
-            "You have configured a supervisor for this field ('%s'), but it "
-            "the position_type is not a clerkship. Instead it's: '%s'"
-            % (sup.name_full, instance.position_type)
-        )
+        if not instance.is_clerkship:
+            raise ValidationError(
+                f"You have configured a supervisor for this field ('{sup.name_full}'), but it the position_type is not a clerkship. Instead it's: '{instance.position_type}'"
+            )
 
 
 def validate_all_or_none(instance, fields):
@@ -357,8 +343,7 @@ def validate_all_or_none(instance, fields):
     none_complete = completed_fields == 0
     if not any([all_complete, none_complete]):
         raise ValidationError(
-            "%s of the following fields are complete, but either all of them need to be, or none of them need to be: %s"
-            % (completed_fields, ", ".join(fields))
+            f'{completed_fields} of the following fields are complete, but either all of them need to be, or none of them need to be: {", ".join(fields)}'
         )
 
 
@@ -411,10 +396,7 @@ def invert_choices_group_lookup(c):
     """Invert a choices variable in a model to get the key from the value.
     (key:, 'value') -> {'value': key}
     """
-    d = {}
-    for choice, value in c:
-        d[value] = choice
-    return d
+    return {value: choice for choice, value in c}
 
 
 def flatten_choices(self):

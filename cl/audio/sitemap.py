@@ -25,8 +25,7 @@ class BlockedAudioSitemap(sitemaps.Sitemap):
 
     def items(self) -> QuerySet:
         return Audio.objects.filter(
-            blocked=True,
-            date_blocked__gt=datetime.today() - timedelta(days=30),
+            blocked=True, date_blocked__gt=datetime.now() - timedelta(days=30)
         ).order_by("pk")
 
     def lastmod(self, obj: Audio) -> datetime:

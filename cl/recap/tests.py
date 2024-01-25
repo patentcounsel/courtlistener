@@ -994,8 +994,7 @@ def mock_bucket_open(message_id, r, read_file=False):
     if read_file:
         with open(test_dir / message_id, "rb") as file:
             return file.read()
-    recap_mail_example = open(test_dir / message_id, "rb")
-    return recap_mail_example
+    return open(test_dir / message_id, "rb")
 
 
 class RecapEmailToEmailProcessingQueueTest(TestCase):
@@ -1368,15 +1367,12 @@ class RecapZipTaskTest(TestCase):
             ),
         )
 
-        # A new pq should be created for each document
-        expected_new_pq_count = 2
         actual_new_pq_count = len(results["new_pqs"])
+        expected_new_pq_count = 2
         self.assertEqual(
             expected_new_pq_count,
             actual_new_pq_count,
-            msg="Should have %s pq items in the DB, two from inside the zip, "
-            "and one for the zip itself. Instead got %s."
-            % (expected_new_pq_count, actual_new_pq_count),
+            msg=f"Should have {expected_new_pq_count} pq items in the DB, two from inside the zip, and one for the zip itself. Instead got {actual_new_pq_count}.",
         )
 
         # Wait for all the tasks to finish
@@ -4353,17 +4349,11 @@ class GetAndCopyRecapAttachments(TestCase):
         )
         rds_all = RECAPDocument.objects.all()
         for rd in rds_all:
-            if rd.attachment_number == 1:
+            if rd.attachment_number in [1, 2]:
                 with rd.filepath_local.open(mode="rb") as local_path:
                     self.assertEqual(
                         local_path.read(), b"Hello World from magic"
                     )
-            elif rd.attachment_number == 2:
-                with rd.filepath_local.open(mode="rb") as local_path:
-                    self.assertEqual(
-                        local_path.read(), b"Hello World from magic"
-                    )
-
         # After successfully copying the attachment document from the PQ object
         # check if the PQ object is marked as successful and the file is deleted
         pqs = ProcessingQueue.objects.all()
@@ -5914,9 +5904,7 @@ class WebhooksRetries(TestCase):
             (96, 4, 3),  # 4 days after, No new email out
         ]
         time_to_check = now_time.replace(hour=12, minute=00)
-        minute_delay = 0
-        for hours, email_out, days in iterations:
-            minute_delay += 1
+        for minute_delay, (hours, email_out, days) in enumerate(iterations, start=1):
             hours_after = time_to_check + timedelta(
                 hours=hours, minutes=minute_delay
             )
@@ -6268,41 +6256,32 @@ class CalculateRecapsSequenceNumbersTest(TestCase):
         docket_entries_nyed = DocketEntry.objects.filter(
             docket__court=self.nyed
         ).order_by("recap_sequence_number")
-        entry_number = 1
         # Validate recap_sequence_number generated from entries in desc order
-        for de in docket_entries_nyed:
+        for entry_number, de in enumerate(docket_entries_nyed, start=1):
             self.assertEqual(de.entry_number, entry_number)
             self.assertEqual(
                 de.recap_sequence_number, f"2021-10-15.00{entry_number}"
             )
-            entry_number += 1
-
         async_to_sync(add_docket_entries)(
             self.d_cand, self.de_date_asc["docket_entries"]
         )
         docket_entries_cand = DocketEntry.objects.filter(
             docket__court=self.cand
         ).order_by("recap_sequence_number")
-        entry_number = 1
         # Validate recap_sequence_number generated from entries in asc order
-        for de in docket_entries_cand:
+        for entry_number, de in enumerate(docket_entries_cand, start=1):
             self.assertEqual(de.entry_number, entry_number)
             self.assertEqual(
                 de.recap_sequence_number, f"2021-10-15.00{entry_number}"
             )
-            entry_number += 1
-
         async_to_sync(add_docket_entries)(
             self.d_nysd, self.de_datetime_prev_differs["docket_entries"]
         )
         docket_entries_nysd = DocketEntry.objects.filter(
             docket__court=self.nysd
         ).order_by("recap_sequence_number")
-        # Validate recap_sequence_number changes if the previous entry date
-        # differs
-        entry_number = 1
         prev_de = None
-        for de in docket_entries_nysd:
+        for entry_number, de in enumerate(docket_entries_nysd, start=1):
             if not prev_de or de.date_filed == prev_de.date_filed:
                 self.assertEqual(
                     de.recap_sequence_number, f"2021-10-15.00{entry_number}"
@@ -6310,7 +6289,6 @@ class CalculateRecapsSequenceNumbersTest(TestCase):
             else:
                 self.assertEqual(de.recap_sequence_number, "2021-10-16.001")
             self.assertEqual(de.entry_number, entry_number)
-            entry_number += 1
             prev_de = de
 
 
@@ -6792,7 +6770,7 @@ class RemoveDuplicatedMinuteEntries(TestCase):
         # Adapt docket entries to simulate docket history report entries
         # without duplicates.
         data_history = deepcopy(docket_data)
-        docket_entries_history = data_history["docket_entries"][0:3]
+        docket_entries_history = data_history["docket_entries"][:3]
         docket_entries_history[0][
             "short_description"
         ] = "Order on Motion for Extension of Time to Complete Discovery"

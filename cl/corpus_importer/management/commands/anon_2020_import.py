@@ -67,12 +67,11 @@ def merge_or_add_opinions(
     :param found_citations: A list of FoundCitation objects.
     :return: The merged docket, cluster, and opinion.
     """
-    does_exist = (
+    if does_exist := (
         Opinion.objects.filter(cluster_id=cluster_id)
         .exclude(html_anon_2020="")
         .exists()
-    )
-    if does_exist:
+    ):
         logger.info(f"Opinion already in database at {cluster_id}")
         return None
 
@@ -325,9 +324,7 @@ def find_court_id(court_str: str) -> str:
     :param court_str: The raw court name
     :return: The cl court id for associated tax court.
     """
-    if court_str == "United States Board of Tax Appeals":
-        return "bta"
-    return "tax"
+    return "bta" if court_str == "United States Board of Tax Appeals" else "tax"
 
 
 def process_dates(

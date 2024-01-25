@@ -135,8 +135,7 @@ def do_bulk_additions(
 
         # Add bankruptcy data to dockets.
         for d in d_bulk_created:
-            docket_data = unique_dockets.get(d.docket_number)
-            if docket_data:
+            if docket_data := unique_dockets.get(d.docket_number):
                 add_bankruptcy_data_to_docket(d, docket_data)
 
         # Find and assign the created docket pk to the list of docket entries
@@ -144,9 +143,9 @@ def do_bulk_additions(
         for d_created in d_bulk_created:
             docket_number = d_created.docket_number
             des_to_create = des_to_add_no_existing_docket[docket_number]
-            for de_entry in des_to_create:
-                des_to_add_existing_docket.append((d_created.pk, de_entry))
-
+            des_to_add_existing_docket.extend(
+                (d_created.pk, de_entry) for de_entry in des_to_create
+            )
         # Create docket entries in bulk.
         docket_entries_to_add_bulk = get_docket_entries_to_add(
             court_id, des_to_add_existing_docket
@@ -271,11 +270,11 @@ async def merge_rss_data(
     ] = defaultdict(list)
     for docket in feed_data:
         skip_or_break = await check_for_early_termination(court_id, docket)
-        if skip_or_break == "continue":
-            continue
-        elif skip_or_break == "break":
+        if skip_or_break == "break":
             break
 
+        elif skip_or_break == "continue":
+            continue
         d = await find_docket_object(
             court_id,
             docket["pacer_case_id"],
@@ -292,26 +291,23 @@ async def merge_rss_data(
         ):
             # It's an existing docket entry; let's not add it.
             continue
-        else:
-            # Try finding the docket entry by short_description.
-            short_description = docket_entry["short_description"]
-            query = Q()
-            if short_description:
-                query |= Q(
-                    recap_documents__description=docket_entry[
-                        "short_description"
-                    ]
-                )
-            if (
-                d.pk
-                and await d.docket_entries.filter(
-                    query,
-                    date_filed=docket_entry["date_filed"],
-                    entry_number=docket_entry["document_number"],
-                ).aexists()
-            ):
-                # It's an existing docket entry; let's not add it.
-                continue
+        query = Q()
+        if short_description := docket_entry["short_description"]:
+            query |= Q(
+                recap_documents__description=docket_entry[
+                    "short_description"
+                ]
+            )
+        if (
+            d.pk
+            and await d.docket_entries.filter(
+                query,
+                date_filed=docket_entry["date_filed"],
+                entry_number=docket_entry["document_number"],
+            ).aexists()
+        ):
+            # It's an existing docket entry; let's not add it.
+            continue
 
         d.add_recap_source()
         if not d.pk:
@@ -417,9 +413,7 @@ def get_court_from_line(line: str):
     if match.group(4):
         court = match.group(4)
 
-    if not court:
-        return None
-    return troller_ids.get(court, None)
+    return None if not court else troller_ids.get(court, None)
 
 
 class OptionsType(TypedDict):
@@ -529,20 +523,16 @@ def download_files_concurrently(
     linecache.clearcache()
     linecache.checkcache(file_path)
     if files_queue.qsize() < FILES_BUFFER_THRESHOLD - 1:
-        for j in range(FILES_BUFFER_THRESHOLD):
-            # Get the next paths to download.
-            next_line = linecache.getline(
+        for _ in range(FILES_BUFFER_THRESHOLD):
+            if next_line := linecache.getline(
                 file_path, files_downloaded_offset + 1
-            )
-            if next_line:
+            ):
                 files_to_download.append(unquote(next_line).replace("\n", ""))
                 files_downloaded_offset += 1
 
         # Download the files concurrently.
         if files_to_download:
-            last_thread = None
-            if threads:
-                last_thread = threads[-1]
+            last_thread = threads[-1] if threads else None
             download_thread = threading.Thread(
                 target=download_files_from_paths,
                 args=(files_to_download, files_queue, last_thread),
@@ -572,68 +562,67 @@ def iterate_and_import_files(
 
     # Enable automatic garbage collection.
     gc.enable()
-    f = open(options["file"], "r", encoding="utf-8")
-    total_dockets_created = 0
-    total_rds_created = 0
+    with open(options["file"], "r", encoding="utf-8") as f:
+        total_dockets_created = 0
+        total_rds_created = 0
 
-    files_queue: Queue = Queue(maxsize=FILES_BUFFER_THRESHOLD)
-    files_downloaded_offset = options["offset"]
-    for i, line in enumerate(f):
-        if i < options["offset"]:
-            continue
-        if i >= options["limit"] > 0:
-            break
+        files_queue: Queue = Queue(maxsize=FILES_BUFFER_THRESHOLD)
+        files_downloaded_offset = options["offset"]
+        for i, line in enumerate(f):
+            if i < options["offset"]:
+                continue
+            if i >= options["limit"] > 0:
+                break
 
-        # If the files_queue has less than FILES_BUFFER_THRESHOLD files, then
-        # download more files ahead and store them to the queue.
-        files_downloaded_offset = download_files_concurrently(
-            files_queue, f.name, files_downloaded_offset, threads
-        )
-
-        # Process a file from the queue.
-        binary, item_path, order = files_queue.get()
-        court_id = get_court_from_line(item_path)
-        logger.info(f"Attempting: {item_path=} with {court_id=} \n")
-        if not court_id:
-            # Probably a court we don't know
-            continue
-        try:
-            feed_data, build_date = parse_file(binary, court_id)
-        except ParserError:
-            logger.info(
-                f"Skipping: {item_path=} with {court_id=} due to incorrect date format. \n"
+            # If the files_queue has less than FILES_BUFFER_THRESHOLD files, then
+            # download more files ahead and store them to the queue.
+            files_downloaded_offset = download_files_concurrently(
+                files_queue, f.name, files_downloaded_offset, threads
             )
-            continue
-        rds_for_solr, dockets_created = async_to_sync(merge_rss_data)(
-            feed_data, court_id, build_date
-        )
 
-        add_items_to_solr.delay(rds_for_solr, "search.RECAPDocument")
-
-        total_dockets_created += dockets_created
-        total_rds_created += len(rds_for_solr)
-
-        # Mark the file as completed and remove it from the queue.
-        files_queue.task_done()
-
-        # Remove completed download threads from the list of threads.
-        for thread in threads:
-            if not thread.is_alive():
-                threads.remove(thread)
-        logger.info(f"Last line imported: {i} \n")
-
-        if not i % 25:
-            # Log every 25 lines.
-            log_added_items_to_redis(
-                total_dockets_created, total_rds_created, i
+            # Process a file from the queue.
+            binary, item_path, order = files_queue.get()
+            court_id = get_court_from_line(item_path)
+            logger.info(f"Attempting: {item_path=} with {court_id=} \n")
+            if not court_id:
+                # Probably a court we don't know
+                continue
+            try:
+                feed_data, build_date = parse_file(binary, court_id)
+            except ParserError:
+                logger.info(
+                    f"Skipping: {item_path=} with {court_id=} due to incorrect date format. \n"
+                )
+                continue
+            rds_for_solr, dockets_created = async_to_sync(merge_rss_data)(
+                feed_data, court_id, build_date
             )
-            # Restart counters after logging into redis.
-            total_dockets_created = 0
-            total_rds_created = 0
 
-        # Ensure garbage collector is called at the end of each iteration.
-        gc.collect()
-    f.close()
+            add_items_to_solr.delay(rds_for_solr, "search.RECAPDocument")
+
+            total_dockets_created += dockets_created
+            total_rds_created += len(rds_for_solr)
+
+            # Mark the file as completed and remove it from the queue.
+            files_queue.task_done()
+
+            # Remove completed download threads from the list of threads.
+            for thread in threads:
+                if not thread.is_alive():
+                    threads.remove(thread)
+            logger.info(f"Last line imported: {i} \n")
+
+            if not i % 25:
+                # Log every 25 lines.
+                log_added_items_to_redis(
+                    total_dockets_created, total_rds_created, i
+                )
+                # Restart counters after logging into redis.
+                total_dockets_created = 0
+                total_rds_created = 0
+
+            # Ensure garbage collector is called at the end of each iteration.
+            gc.collect()
 
 
 class Command(VerboseCommand):

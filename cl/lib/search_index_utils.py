@@ -43,12 +43,8 @@ def normalize_search_dicts(d):
        This is needed because sets aren't JSON serializable, but they're
        convenient to use when building up a search object.
     """
-    new_dict = {}
-    for k, v in d.items():
-        if v is None:
-            continue
-        if isinstance(v, set):
-            new_dict[k] = list(v)
-        else:
-            new_dict[k] = v
-    return new_dict
+    return {
+        k: list(v) if isinstance(v, set) else v
+        for k, v in d.items()
+        if v is not None
+    }

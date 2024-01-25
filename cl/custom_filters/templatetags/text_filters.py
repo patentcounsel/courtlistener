@@ -74,10 +74,7 @@ def nbsp(text, autoescape=None):
 @stringfilter
 def v_wrapper(text, autoescape=None):
     """Wraps every v. in a string with a class of alt"""
-    if autoescape:
-        esc = conditional_escape
-    else:
-        esc = lambda x: x
+    esc = conditional_escape if autoescape else (lambda x: x)
     return mark_safe(
         re.sub(r" v\. ", '<span class="alt"> v. </span>', esc(text))
     )
@@ -87,10 +84,7 @@ def v_wrapper(text, autoescape=None):
 @stringfilter
 def underscore_to_space(text, autoescape=None):
     """Removed underscores from text."""
-    if autoescape:
-        esc = conditional_escape
-    else:
-        esc = lambda x: x
+    esc = conditional_escape if autoescape else (lambda x: x)
     return mark_safe(re.sub("_", " ", esc(text)))
 
 
@@ -107,10 +101,7 @@ def compress_whitespace(text, autoescape=None):
 
     Becomes: 'text foo bar baz'
     """
-    if autoescape:
-        esc = conditional_escape
-    else:
-        esc = lambda x: x
+    esc = conditional_escape if autoescape else (lambda x: x)
     text = esc(text)
     return mark_safe(" ".join(text.split()))
 
@@ -142,14 +133,13 @@ def naturalduration(seconds, autoescape=None, as_dict=False):
             "m": trunc_m,
             "s": trunc_s,
         }
-    else:
-        duration = "%02d:%02d:%02d:%02d" % (trunc_d, trunc_h, trunc_m, trunc_s)
-        trimmed_duration = duration.lstrip("0:")
-        if len(trimmed_duration) == 0:
-            # It was ALL trimmed away.
-            trimmed_duration = "0"
+    duration = "%02d:%02d:%02d:%02d" % (trunc_d, trunc_h, trunc_m, trunc_s)
+    trimmed_duration = duration.lstrip("0:")
+    if len(trimmed_duration) == 0:
+        # It was ALL trimmed away.
+        trimmed_duration = "0"
 
-        return mark_safe(trimmed_duration)
+    return mark_safe(trimmed_duration)
 
 
 @register.filter(is_safe=True)
@@ -196,10 +186,7 @@ def read_more(s, show_words, autoescape=True):
     found in Bootstrap to hide elements.
     """
     show_words = int(show_words)
-    if autoescape:
-        esc = conditional_escape
-    else:
-        esc = lambda x: x
+    esc = conditional_escape if autoescape else (lambda x: x)
     words = esc(s).split()
 
     if len(words) <= show_words:

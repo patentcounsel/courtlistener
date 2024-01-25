@@ -19,13 +19,10 @@ def get_scotus_judges(d):
 
 def get_min_dates():
     """returns a dictionary with key-value (courtid, minimum date)"""
-    min_dates = {}
     courts = Court.objects.exclude(
         dockets__clusters__source__contains=SOURCES.COLUMBIA_ARCHIVE
     ).annotate(earliest_date=Min("dockets__clusters__date_filed"))
-    for court in courts:
-        min_dates[court.pk] = court.earliest_date
-    return min_dates
+    return {court.pk: court.earliest_date for court in courts}
 
 
 def get_path_list():
@@ -46,11 +43,8 @@ def get_path_list():
 
 def get_courtdates():
     """returns a dictionary with key-value (courtid, founding date)"""
-    start_dates = {}
     courts = Court.objects
-    for court in courts:
-        start_dates[court.pk] = court.start_date
-    return start_dates
+    return {court.pk: court.start_date for court in courts}
 
 
 def get_min_nocite():
@@ -59,10 +53,7 @@ def get_min_nocite():
 
     {'ala': Some-date, ...}
     """
-    min_dates = {}
     courts = Court.objects.filter(
         dockets__clusters__citations__isnull=True
     ).annotate(earliest_date=Min("dockets__clusters__date_filed"))
-    for court in courts:
-        min_dates[court.pk] = court.earliest_date
-    return min_dates
+    return {court.pk: court.earliest_date for court in courts}

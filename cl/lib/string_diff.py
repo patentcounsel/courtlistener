@@ -13,7 +13,7 @@ def remove_words(phrase):
         + r"|others|against|ex|parte|complainants?|original|claimants?|devisee"
         + r"|executrix|executor"
     )
-    stop_words_reg = re.compile(r"^(%s)$" % stop_words, re.IGNORECASE)
+    stop_words_reg = re.compile(f"^({stop_words})$", re.IGNORECASE)
 
     # strips punctuation
     exclude = set(string.punctuation)
@@ -41,10 +41,7 @@ def gen_diff_ratio(left, right):
     left = remove_words(left)
     right = remove_words(right)
 
-    # compute the difference value
-    diff = difflib.SequenceMatcher(None, left.strip(), right.strip()).ratio()
-
-    return diff
+    return difflib.SequenceMatcher(None, left.strip(), right.strip()).ratio()
 
 
 def find_best_match(items, s, case_sensitive=True):
@@ -116,13 +113,10 @@ def get_cosine_similarity(left_str: str, right_str: str) -> float:
     """
     left, right = string_to_vector(left_str), string_to_vector(right_str)
     intersection = set(left.keys()) & set(right.keys())
-    numerator = sum([left[x] * right[x] for x in intersection])
+    numerator = sum(left[x] * right[x] for x in intersection)
 
-    sum1 = sum([left[x] ** 2 for x in left.keys()])
-    sum2 = sum([right[x] ** 2 for x in right.keys()])
+    sum1 = sum(left[x] ** 2 for x in left.keys())
+    sum2 = sum(right[x] ** 2 for x in right.keys())
     denominator = math.sqrt(sum1) * math.sqrt(sum2)
 
-    if not denominator:
-        return 0.0
-    else:
-        return float(numerator) / denominator
+    return 0.0 if not denominator else float(numerator) / denominator

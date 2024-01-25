@@ -89,18 +89,7 @@ def lookup_and_save(new, debug=False):
             def is_different(x):
                 return x.pacer_case_id and x.pacer_case_id != new.pacer_case_id
 
-            if all(is_different(d) for d in ds):
-                # All the dockets found match on docket number, but have
-                # different pacer_case_ids. This means that the docket has
-                # multiple pacer_case_ids in PACER, and we should mirror that
-                # in CL by creating a new docket for the new item.
-                d = Docket(source=Docket.RECAP)
-            else:
-                # Just use the most recent docket. Looking at the data, this is
-                # OK. Nearly all of these are dockets associated with clusters
-                # that can be merged (however, that's a project for clusters).
-                d = ds[0]
-
+            d = Docket(source=Docket.RECAP) if all(is_different(d) for d in ds) else ds[0]
     # Add RECAP as a source if it's not already.
     if d.source in [Docket.DEFAULT, Docket.SCRAPER]:
         d.source = Docket.RECAP_AND_SCRAPER
@@ -115,8 +104,7 @@ def lookup_and_save(new, debug=False):
     if not debug:
         d.save()
         logger.info(
-            "Saved as Docket %s: https://www.courtlistener.com%s"
-            % (d.pk, d.get_absolute_url())
+            f"Saved as Docket {d.pk}: https://www.courtlistener.com{d.get_absolute_url()}"
         )
     return d
 
@@ -143,23 +131,22 @@ def get_first_missing_de_date(d: Docket):
         .order_by("entry_number")
         .values_list("entry_number", "date_filed")
     )
-    de_numbers = [i[0] for i in de_number_tuples if i[0]]
-
-    if len(de_numbers) > 0:
+    if de_numbers := [i[0] for i in de_number_tuples if i[0]]:
         # Get the earliest missing item
         end = de_numbers[-1]
-        missing_items = sorted(set(range(1, end + 1)).difference(de_numbers))
-        if missing_items:
-            if missing_items[0] == 1:
-                return date(1960, 1, 1)
-            else:
-                previous = missing_items[0] - 1
-                for entry_number, entry_date in de_number_tuples:
-                    if entry_number == previous:
-                        return entry_date
-        else:
+        if not (
+            missing_items := sorted(
+                set(range(1, end + 1)).difference(de_numbers)
+            )
+        ):
             # None missing, but we can start after the highest de we know.
             return de_number_tuples[-1][1]
+        if missing_items[0] == 1:
+            return date(1960, 1, 1)
+        previous = missing_items[0] - 1
+        for entry_number, entry_date in de_number_tuples:
+            if entry_number == previous:
+                return entry_date
     return date(1960, 1, 1)
 
 
@@ -323,8 +310,7 @@ def normalize_attorney_role(r: str) -> RoleType:
 def normalize_us_phone_number(phone):
     """Tidy up phone numbers so they're nice."""
     phone = re.sub(r"(\(|\)|\s+)", "", phone)
-    m = phone_digits_re.search(phone)
-    if m:
+    if m := phone_digits_re.search(phone):
         return f"({m.group(1)}) {m.group(2)}-{m.group(3)}"
     return ""
 
@@ -452,13 +438,11 @@ def normalize_attorney_contact(c, fallback_name=""):
         clean_line = re.sub(r"(\(|\)|\\|/|\s+)", "", line)
         if clean_line.startswith("Fax:"):
             clean_line = re.sub("Fax:", "", clean_line)
-            m = phone_digits_re.search(clean_line)
-            if m:
+            if m := phone_digits_re.search(clean_line):
                 atty_info["fax"] = normalize_us_phone_number(clean_line)
             continue
         else:
-            m = phone_digits_re.search(clean_line)
-            if m:
+            if m := phone_digits_re.search(clean_line):
                 atty_info["phone"] = normalize_us_phone_number(clean_line)
                 continue
 
@@ -467,8 +451,7 @@ def normalize_attorney_contact(c, fallback_name=""):
             fallback_name = line
             continue
 
-        has_chars = re.search("[a-zA-Z]", line)
-        if has_chars:
+        if has_chars := re.search("[a-zA-Z]", line):
             # Not email, phone, fax, and has at least one char.
             address_lines.append(line)
 
@@ -585,11 +568,8 @@ def get_or_cache_pacer_court_status(court_id: str, server_ip: str) -> bool:
 
     court_status_key = f"status:pacer:court.{court_id}:ip.{server_ip}"
     r = make_redis_interface("CACHE", decode_responses=False)
-    pickle_status = r.get(court_status_key)
-    if pickle_status:
-        court_status = pickle.loads(pickle_status)
-        return court_status
-
+    if pickle_status := r.get(court_status_key):
+        return pickle.loads(pickle_status)
     # Unable to find court_status in cache, getting it from request.
     connection_info = check_pacer_court_connectivity(court_id)
     current_status = connection_info["connection_ok"]
@@ -628,11 +608,7 @@ def log_pacer_court_connection(
     status_code = connection_info["status_code"]
     if status_code is None:
         status_code = 0
-    if connection_info["connection_ok"] is True:
-        connection_ok = "True"
-    else:
-        connection_ok = "False"
-
+    connection_ok = "True" if connection_info["connection_ok"] is True else "False"
     log_info: Mapping[str | bytes, str | int] = {
         "connection_ok": connection_ok,
         "status_code": status_code,
@@ -655,5 +631,4 @@ def is_pacer_court_accessible(court_id: str) -> bool:
     hostname = socket.gethostname()
     ip_addr = socket.gethostbyname(hostname)
 
-    court_status = get_or_cache_pacer_court_status(pacer_court_id, ip_addr)
-    return court_status
+    return get_or_cache_pacer_court_status(pacer_court_id, ip_addr)

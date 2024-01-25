@@ -149,8 +149,7 @@ class RealTimeQueue(models.Model):
         db_index=True,
     )
     item_type = models.CharField(
-        help_text="the type of item this is, one of: %s"
-        % ", ".join(f"{t[0]} ({t[1]})" for t in SEARCH_TYPES.NAMES),
+        help_text=f'the type of item this is, one of: {", ".join(f"{t[0]} ({t[1]})" for t in SEARCH_TYPES.NAMES)}',
         max_length=3,
         choices=SEARCH_TYPES.NAMES,
         db_index=True,
@@ -160,9 +159,7 @@ class RealTimeQueue(models.Model):
 
 class DateJSONEncoder(DjangoJSONEncoder):
     def default(self, obj):
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        return super().default(obj)
+        return obj.isoformat() if isinstance(obj, datetime) else super().default(obj)
 
 
 class SCHEDULED_ALERT_HIT_STATUS:

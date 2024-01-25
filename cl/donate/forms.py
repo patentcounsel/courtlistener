@@ -36,16 +36,10 @@ class DecimalOrOtherChoiceField(forms.ChoiceField):
         (as required by amount) or as the word 'other', which is fixed in the
         clean() method for the DonationForm class.
         """
-        if value == "other":
-            return value
-        else:
-            return super().to_python(value)
+        return value if value == "other" else super().to_python(value)
 
     def validate(self, value):
-        if value == "other":
-            return value
-        else:
-            return super().validate(value)
+        return value if value == "other" else super().validate(value)
 
 
 class ProfileForm(ModelForm):

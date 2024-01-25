@@ -75,16 +75,15 @@ def disable_alert(request, secret_key):
 
 def enable_alert(request, secret_key):
     alert = get_object_or_404(Alert, secret_key=secret_key)
-    rate = request.GET.get("rate")
-    if not rate:
-        failed = "a rate was not provided"
-    else:
+    if rate := request.GET.get("rate"):
         if rate not in Alert.ALL_FREQUENCIES:
             failed = "an unknown rate was provided"
         else:
             alert.rate = rate
             alert.save()
             failed = ""
+    else:
+        failed = "a rate was not provided"
     return render(
         request,
         "enable_alert.html",
@@ -100,37 +99,33 @@ def toggle_docket_alert(request: AuthenticatedHttpRequest) -> HttpResponse:
     if request.user.is_anonymous:
         return HttpResponse("Please log in to continue.")
 
-    if is_ajax(request) and request.method == "POST":
-        docket_pk = request.POST.get("id")
-        if not docket_pk:
-            msg = "Unable to alter alert. Please provide ID attribute"
-            return HttpResponse(msg)
-        existing_alert = DocketAlert.objects.filter(
-            user=request.user,
-            docket_id=docket_pk,
-        )
-        if existing_alert.exists():
-            if existing_alert[0].alert_type == DocketAlert.SUBSCRIPTION:
-                # Use save() to force date_created to be updated
-                da_alert = existing_alert[0]
-                da_alert.alert_type = DocketAlert.UNSUBSCRIPTION
-                da_alert.save()
-                msg = "Alert disabled successfully"
-            else:
-                # Use save() to force date_created to be updated
-                da_alert = existing_alert[0]
-                da_alert.alert_type = DocketAlert.SUBSCRIPTION
-                da_alert.save()
-                msg = "Alerts are now enabled for this docket"
-        else:
-            DocketAlert.objects.create(docket_id=docket_pk, user=request.user)
-            msg = "Alerts are now enabled for this docket"
-
-        return HttpResponse(msg)
-    else:
+    if not is_ajax(request) or request.method != "POST":
         return HttpResponseNotAllowed(
             permitted_methods={"POST"}, content="Not an ajax POST request."
         )
+    docket_pk = request.POST.get("id")
+    if not docket_pk:
+        msg = "Unable to alter alert. Please provide ID attribute"
+        return HttpResponse(msg)
+    existing_alert = DocketAlert.objects.filter(
+        user=request.user,
+        docket_id=docket_pk,
+    )
+    if existing_alert.exists():
+        # Use save() to force date_created to be updated
+        da_alert = existing_alert[0]
+        if da_alert.alert_type == DocketAlert.SUBSCRIPTION:
+            da_alert.alert_type = DocketAlert.UNSUBSCRIPTION
+            msg = "Alert disabled successfully"
+        else:
+            da_alert.alert_type = DocketAlert.SUBSCRIPTION
+            msg = "Alerts are now enabled for this docket"
+        da_alert.save()
+    else:
+        DocketAlert.objects.create(docket_id=docket_pk, user=request.user)
+        msg = "Alerts are now enabled for this docket"
+
+    return HttpResponse(msg)
 
 
 async def new_docket_alert(request: AuthenticatedHttpRequest) -> HttpResponse:

@@ -62,13 +62,12 @@ def make_financial_disclosure_thumbnail_from_pdf(self, pk: int) -> None:
         file=pdf_content,
     )
     if not response.is_success:
-        if self.request.retries == self.max_retries:
-            disclosure.thumbnail_status = THUMBNAIL_STATUSES.FAILED
-            disclosure.save()
-            return
-        else:
+        if self.request.retries != self.max_retries:
             raise self.retry(exc=response.status_code)
 
+        disclosure.thumbnail_status = THUMBNAIL_STATUSES.FAILED
+        disclosure.save()
+        return
     disclosure.thumbnail_status = THUMBNAIL_STATUSES.COMPLETE
     disclosure.thumbnail.save(None, ContentFile(response.content))
 
@@ -149,9 +148,7 @@ def get_date(text: str, year: int) -> Optional[datetime.date]:
         if date_found.month == 12 and date_found.day == 25:
             raise ChristmasError("Christmas error.")
 
-        if int(date_found.year) == year:
-            return date_found
-        return None
+        return date_found if int(date_found.year) == year else None
     except (ParserError, ChristmasError):
         return None
     except TypeError:

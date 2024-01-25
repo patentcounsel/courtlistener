@@ -91,9 +91,7 @@ def rows_distributed(thelist, n):
     except (ValueError, TypeError):
         return [thelist]
     list_len = len(thelist)
-    split = list_len // n
-
-    remainder = list_len % n
+    split, remainder = divmod(list_len, n)
     offset = 0
     rows = []
     for i in range(n):

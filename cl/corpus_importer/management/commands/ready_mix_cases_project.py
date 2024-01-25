@@ -96,7 +96,7 @@ def get_latest_pacer_case_id(court_id: str, year: int) -> str | None:
     :return: The latest pacer_case_id if found, otherwise None.
     """
 
-    latest_docket = (
+    if latest_docket := (
         Docket.objects.filter(
             court_id=court_id,
             date_filed__year=year,
@@ -104,9 +104,7 @@ def get_latest_pacer_case_id(court_id: str, year: int) -> str | None:
         )
         .order_by("-date_filed")
         .first()
-    )
-
-    if latest_docket:
+    ):
         return latest_docket.pacer_case_id
     return None
 
@@ -234,11 +232,6 @@ def add_bank_cases_to_cl(options: OptionsType, r) -> None:
                     )
                     continue
 
-                if iquery_empty_count >= stop_threshold:
-                    # Abort for consecutive empty results.
-                    # Stop doing this court.
-                    court_ids.remove(court_id)
-                    continue
                 pacer_case_id = r.hincrby("iquery_status", court_id, 1)
                 make_docket_by_iquery.apply_async(
                     args=(court_id, pacer_case_id),

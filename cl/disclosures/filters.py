@@ -27,16 +27,22 @@ disclosure_fields = {
 }
 
 
+
+
 class AgreementFilter(NoEmptyFilterSet):
     financial_disclosure = filters.RelatedFilter(
         "cl.disclosures.filters.FinancialDisclosureFilter",
         queryset=FinancialDisclosure.objects.all(),
     )
 
+
+
     class Meta:
         model = Agreement
         fields = disclosure_fields.copy()
-        fields.update({"parties_and_terms": ALL_TEXT_LOOKUPS})
+        fields["parties_and_terms"] = ALL_TEXT_LOOKUPS
+
+
 
 
 class DebtFilter(NoEmptyFilterSet):

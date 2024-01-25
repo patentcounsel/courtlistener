@@ -49,5 +49,4 @@ def localize_naive_datetime_to_court_timezone(
     """
 
     court_timezone = pytz.timezone(COURT_TIMEZONES.get(court_id, "US/Eastern"))
-    d = court_timezone.localize(naive_datetime)
-    return d
+    return court_timezone.localize(naive_datetime)

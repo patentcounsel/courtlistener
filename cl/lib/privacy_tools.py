@@ -31,7 +31,7 @@ def set_blocked_status(opinion: Opinion, content: str, extension: str) -> None:
         return None
 
     # Block if there is sensitive content in the document
-    if extension in ["html", "wpd"]:
+    if extension in {"html", "wpd"}:
         opinion.html, found_ppi = anonymize(content)
     else:
         opinion.plain_text, found_ppi = anonymize(content)

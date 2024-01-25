@@ -61,15 +61,13 @@ def query_and_save_creditors_data(options: OptionsType) -> None:
     for file in options["files"]:
         f = open(f"{base_path}/{file}", "r", encoding="utf-8")
         reader = csv.DictReader(f)
-        match = regex.search(file)
-        if match:
-            court_id = match.group(1)
-            court_id = map_cl_to_pacer_id(court_id)
-            file_tuple = (court_id, reader)
-            csv_files.append(file_tuple)
-        else:
+        if not (match := regex.search(file)):
             raise ValueError(f"Bad file name {file}")
 
+        court_id = match.group(1)
+        court_id = map_cl_to_pacer_id(court_id)
+        file_tuple = (court_id, reader)
+        csv_files.append(file_tuple)
     session = PacerSession(
         username=CLIENT_PACER_USERNAME, password=CLIENT_PACER_PASSWORD
     )
@@ -130,10 +128,9 @@ def query_and_save_creditors_data(options: OptionsType) -> None:
                 )
                 continue
 
-            newly_enqueued = enqueue_get_list_of_creditors(
+            if newly_enqueued := enqueue_get_list_of_creditors(
                 court_id, d_number_file_name
-            )
-            if newly_enqueued:
+            ):
                 logger.info(
                     f"Enqueueing case: {docket_number}, court:{court_id}..."
                 )

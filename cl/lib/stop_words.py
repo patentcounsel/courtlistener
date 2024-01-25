@@ -29,6 +29,7 @@ THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO PROVIDE MAINTENANCE, SUPPORT,
 UPDATES, ENHANCEMENTS, OR MODIFICATIONS
 """
 
+
 STOP_WORDS = {
     "a",
     "about",
@@ -105,7 +106,6 @@ STOP_WORDS = {
     "isn",
     "isnt",
     "it",
-    "its",
     "its",
     "itself",
     "just",

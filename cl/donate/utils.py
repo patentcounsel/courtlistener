@@ -215,27 +215,26 @@ def send_thank_you_email(
             send_mail(
                 email["subject"], body, email["from_email"], [user.email]
             )
-    else:
-        if payment_type == PAYMENT_TYPES.DONATION:
-            email = emails["donation_thanks"]
-            body = email["body"] % (
-                user.first_name,
-                donation.amount,
-                settings.EIN_SECRET,  # type: ignore
-            )
-            send_mail(
-                email["subject"], body, email["from_email"], [user.email]
-            )
-        elif payment_type == PAYMENT_TYPES.PAYMENT:
-            email = emails["payment_thanks"]
-            body = email["body"] % (
-                user.first_name,
-                donation.amount,
-                donation.pk,
-            )
-            send_mail(
-                email["subject"], body, email["from_email"], [user.email]
-            )
+    elif payment_type == PAYMENT_TYPES.DONATION:
+        email = emails["donation_thanks"]
+        body = email["body"] % (
+            user.first_name,
+            donation.amount,
+            settings.EIN_SECRET,  # type: ignore
+        )
+        send_mail(
+            email["subject"], body, email["from_email"], [user.email]
+        )
+    elif payment_type == PAYMENT_TYPES.PAYMENT:
+        email = emails["payment_thanks"]
+        body = email["body"] % (
+            user.first_name,
+            donation.amount,
+            donation.pk,
+        )
+        send_mail(
+            email["subject"], body, email["from_email"], [user.email]
+        )
 
 
 def send_failed_subscription_email(m_donation: MonthlyDonation) -> None:

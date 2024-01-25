@@ -134,7 +134,7 @@ class StripeTest(TestCase):
             card={
                 "number": cc_number,
                 "exp_month": "6",
-                "exp_year": str(datetime.today().year + 1),
+                "exp_year": str(datetime.now().year + 1),
                 "cvc": "123",
             }
         )
@@ -318,7 +318,7 @@ class DonationIntegrationTest(SimpleUserDataMixin, TestCase):
             card={
                 "number": stripe_test_numbers["good"]["visa"],
                 "exp_month": "6",
-                "exp_year": str(datetime.today().year + 1),
+                "exp_year": str(datetime.now().year + 1),
                 "cvc": "123",
             }
         )

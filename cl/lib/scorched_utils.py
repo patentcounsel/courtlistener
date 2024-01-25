@@ -22,10 +22,7 @@ class ExtraSolrInterface(SolrInterface):
         # Change this line to hit our class instead of SolrSearch. All the rest
         # of this class is the same.
         q = ExtraSolrSearch(self)
-        if len(args) + len(kwargs) > 0:
-            return q.query(*args, **kwargs)
-        else:
-            return q
+        return q.query(*args, **kwargs) if len(args) + len(kwargs) > 0 else q
 
     def mlt_query(self, hl_fields, *args, **kwargs):
         """
@@ -36,12 +33,7 @@ class ExtraSolrInterface(SolrInterface):
         self.hl_fields = hl_fields
         q = MoreLikeThisHighlightsSolrSearch(self)
 
-        if len(args) + len(kwargs) > 0:
-            res = q.query(*args, **kwargs)
-        else:
-            res = q
-
-        return res
+        return q.query(*args, **kwargs) if len(args) + len(kwargs) > 0 else q
 
 
 class ExtraSolrSearch(SolrSearch):
@@ -99,10 +91,7 @@ class ExtraSolrSearch(SolrSearch):
 
 class ExtraOptions(Options):
     def __init__(self, original=None):
-        if original is None:
-            self.option_dict = {}
-        else:
-            self.option_dict = original.option_dict.copy()
+        self.option_dict = {} if original is None else original.option_dict.copy()
 
     def update(self, extra_options):
         self.option_dict.update(extra_options)

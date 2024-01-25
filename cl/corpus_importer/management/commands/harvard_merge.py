@@ -65,34 +65,34 @@ def read_json(cluster: OpinionCluster) -> Dict[str, Any] | None:
     :return: Harvard data as a json object or None
     """
 
-    if cluster.filepath_json_harvard:
-        try:
-            local_data = json.load(cluster.filepath_json_harvard)
-        except ValueError:
-            logger.warning(
-                f"Empty json: missing case at: {cluster.filepath_json_harvard.path}"
-            )
-            return None
-        except Exception as e:
-            logger.warning(
-                f"Unknown error {e} for: {cluster.filepath_json_harvard.path}"
-            )
-            return None
-
-        identifier = "/".join(
-            cluster.filepath_json_harvard.path.rsplit("/", 2)[1:]
+    if not cluster.filepath_json_harvard:
+        return None
+    try:
+        local_data = json.load(cluster.filepath_json_harvard)
+    except ValueError:
+        logger.warning(
+            f"Empty json: missing case at: {cluster.filepath_json_harvard.path}"
         )
-
-        # Fetch fix if exists
-        fix = requests.get(
-            f"https://raw.githubusercontent.com/freelawproject/opinionated/main/data/harvard/{identifier}",
-            timeout=10,
+        return None
+    except Exception as e:
+        logger.warning(
+            f"Unknown error {e} for: {cluster.filepath_json_harvard.path}"
         )
-        if fix.status_code == 200:
-            local_data.update(fix.json())
+        return None
 
-        return local_data
-    return None
+    identifier = "/".join(
+        cluster.filepath_json_harvard.path.rsplit("/", 2)[1:]
+    )
+
+    # Fetch fix if exists
+    fix = requests.get(
+        f"https://raw.githubusercontent.com/freelawproject/opinionated/main/data/harvard/{identifier}",
+        timeout=10,
+    )
+    if fix.status_code == 200:
+        local_data.update(fix.json())
+
+    return local_data
 
 
 def get_data_source(harvard_data: Dict[str, Any]) -> str:
@@ -103,12 +103,11 @@ def get_data_source(harvard_data: Dict[str, Any]) -> str:
     :param harvard_data: case data as dict
     :return: data source
     """
-    data_source = "CAP"
-    data_provenance = harvard_data.get("provenance")
-    if data_provenance:
-        data_source = data_provenance.get("source")
-
-    return data_source
+    return (
+        data_provenance.get("source")
+        if (data_provenance := harvard_data.get("provenance"))
+        else "CAP"
+    )
 
 
 def fetch_non_harvard_data(harvard_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -149,28 +148,18 @@ def fetch_non_harvard_data(harvard_data: Dict[str, Any]) -> Dict[str, Any]:
 
     short_data = parse_extra_fields(soup, short_fields, False)
 
-    # Find any legal field
-    find_any_legal_field = soup.find(
+    if find_any_legal_field := soup.find(
         lambda tag: tag.get("data-type") == "legal"
-    )
-
-    if find_any_legal_field:
-        # We have legal field, then collect all legal and attorneys fields
-        find_fields = soup.find_all(
+    ):
+        if find_fields := soup.find_all(
             lambda tag: tag.get("data-type") == "legal"
             or (tag.name == "attorneys" and tag.get("data-type") is None)
             or tag.get("data-type") == "attorneys"
-        )
-        if find_fields:
-            # Combine attorneys and legal data-type fields
-            arguments = " ".join(str(x) for x in find_fields)
-            all_data["arguments"] = arguments
-    else:
-        # Only save attorneys
-        find_attorneys_fields = find_data_fields(soup, "attorneys")
-        if find_attorneys_fields:
-            attorneys = " ".join(str(x) for x in find_attorneys_fields)
-            all_data["attorneys"] = attorneys
+        ):
+            all_data["arguments"] = " ".join(str(x) for x in find_fields)
+    elif find_attorneys_fields := find_data_fields(soup, "attorneys"):
+        attorneys = " ".join(str(x) for x in find_attorneys_fields)
+        all_data["attorneys"] = attorneys
 
     if "otherdate" in short_data:
         # Rename to correct field name
@@ -183,8 +172,7 @@ def fetch_non_harvard_data(harvard_data: Dict[str, Any]) -> Dict[str, Any]:
     long_data = parse_extra_fields(soup, long_fields, True)
     all_data.update(short_data)
     all_data.update(long_data)
-    all_data = {k: v for k, v in all_data.items() if v}
-    return all_data
+    return {k: v for k, v in all_data.items() if v}
 
 
 def combine_non_overlapping_data(
@@ -200,15 +188,14 @@ def combine_non_overlapping_data(
     changed_values_dictionary: dict[str, Tuple] = {}
     to_update: dict[str, Any] = {}
     for key, value in all_data.items():
-        cl_value = getattr(cluster, key)
-        if not cl_value:
-            # Value is empty for key, we can add it directly to the object
-            to_update[key] = value
-        else:
+        if cl_value := getattr(cluster, key):
             if value != cl_value:
                 # We have different values, update dict
                 changed_values_dictionary[key] = (value, cl_value)
 
+        else:
+            # Value is empty for key, we can add it directly to the object
+            to_update[key] = value
     if to_update:
         # Update all fields at once
         OpinionCluster.objects.filter(id=cluster.id).update(**to_update)
@@ -338,15 +325,12 @@ def save_headmatter(harvard_data: Dict[str, Any]) -> dict[str, Any]:
         op.decompose()
     headmatter = []
     soup = fix_footnotes(soup)
-    index = 0
-    for element in soup.find("casebody").find_all(recursive=False):
+    for index, element in enumerate(soup.find("casebody").find_all(recursive=False)):
         element = fix_pagination(element)
         if element.get("id", "").startswith("b") and index > 0:
             headmatter.append(f"<br>{str(element)}")
         else:
             headmatter.append(str(element))
-        index += 1
-
     return {"headmatter": "".join(headmatter)}
 
 
@@ -370,7 +354,7 @@ def merge_opinion_clusters(
         )
         return
 
-    if only_fastcase and "Fastcase" != get_data_source(harvard_data):
+    if only_fastcase and get_data_source(harvard_data) != "Fastcase":
         logger.info("Skipping non-fastcase opinion cluster")
         return
 
@@ -386,10 +370,9 @@ def merge_opinion_clusters(
             # in combine_non_overlapping_data
             opinion_cluster.refresh_from_db()
 
-            updated_docket_number = merge_docket_numbers(
+            if updated_docket_number := merge_docket_numbers(
                 opinion_cluster, harvard_data["docket_number"]
-            )
-            if updated_docket_number:
+            ):
                 opinion_cluster.docket.docket_number = updated_docket_number
                 opinion_cluster.docket.save()
 
@@ -542,8 +525,7 @@ def fix_footnotes(soup: BeautifulSoup) -> BeautifulSoup:
         fn["id"] = f"fn{fn.string}_ref"
         fn["class"] = "footnote"
 
-        fnl = soup.find("footnote", {"label": fn.string})
-        if fnl:
+        if fnl := soup.find("footnote", {"label": fn.string}):
             obj = f'<a class="footnote" href="#fn{fn.string}_ref">{fn.string}</a>'
             fnl.name = "div"
             fnl["class"] = "footnote"
@@ -585,25 +567,21 @@ def update_matching_opinions(
     for k, v in matches.items():
         op = cluster_sub_opinions[int(v)]
         author_str = ""
-        author = harvard_opinions[int(k)].find("author")
-        if author:
+        if author := harvard_opinions[int(k)].find("author"):
             # Prettify the name a bit
             author_str = titlecase(find_just_name(author.text.strip(":")))
-        if op.author_str == "":
-            # We have an empty author name
-            if author_str:
+        if author_str:
+            if op.author_str == "":
                 # Store the name extracted from the author tag
                 op.author_str = author_str
-        else:
-            if author_str:
-                if (
+            elif (
                     find_just_name(op.author_str).lower()
                     != find_just_name(author_str).lower()
                 ):
-                    raise AuthorException("Authors don't match")
-                elif any(s.isupper() for s in op.author_str.split(",")):
-                    # Some names are uppercase, update with processed names
-                    op.author_str = author_str
+                raise AuthorException("Authors don't match")
+            elif any(s.isupper() for s in op.author_str.split(",")):
+                # Some names are uppercase, update with processed names
+                op.author_str = author_str
 
         clean_opinion = fix_footnotes(harvard_opinions[int(k)])
         clean_opinion = fix_pagination(clean_opinion)
@@ -649,29 +627,28 @@ def map_and_merge_opinions(
 
     elif len(harvard_opinions) > len(cl_opinions) and len(cl_opinions) == 1:
         for op in harvard_opinions:
-            if op.has_attr("type"):
-                opinion_type = map_types.get(op.get("type"))
-                if not opinion_type:
-                    raise OpinionTypeException(
-                        f"Opinion type unknown: {op.get('type')}"
-                    )
-                author = op.find("author")
-
-                Opinion.objects.create(
-                    xml_harvard=str(op),
-                    cluster_id=cluster.id,
-                    type=opinion_type,
-                    author_str=titlecase(
-                        find_just_name(author.text.strip(":"))
-                    )
-                    if author
-                    else "",
-                )
-            else:
+            if not op.has_attr("type"):
                 raise OpinionTypeException(
                     "Harvard opinion has no type "
                     f"attribute: {cluster.filepath_json_harvard}"
                 )
+            opinion_type = map_types.get(op.get("type"))
+            if not opinion_type:
+                raise OpinionTypeException(
+                    f"Opinion type unknown: {op.get('type')}"
+                )
+            author = op.find("author")
+
+            Opinion.objects.create(
+                xml_harvard=str(op),
+                cluster_id=cluster.id,
+                type=opinion_type,
+                author_str=titlecase(
+                    find_just_name(author.text.strip(":"))
+                )
+                if author
+                else "",
+            )
     else:
         # Skip creating new opinion cluster due to differences between
         # Columbia and Harvard data set/parsing.

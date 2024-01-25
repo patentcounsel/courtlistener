@@ -213,32 +213,32 @@ def process_stripe_callback(request: HttpRequest) -> HttpResponse:
     """Always return 200 message or else the webhook will try again ~200 times
     and then send us an email.
     """
-    if request.method == "POST":
-        # Stripe hits us with a callback, and their security model is for us
-        # to use the ID from that to hit their API. It's analogous to when you
-        # get a random call and you call them back to make sure it's legit.
-        event_id = json.loads(request.body)["id"]
-        # Now use the API to call back.
-        stripe.api_key = settings.STRIPE_SECRET_KEY
-        event = json.loads(str(stripe.Event.retrieve(event_id)))
-        logger.info(
-            f"Stripe callback triggered with event id of {event_id}. See "
-            "webhook documentation for details."
+    if request.method != "POST":
+        return HttpResponseNotAllowed(
+            permitted_methods={"POST"},
+            content="<h1>405: This is a callback endpoint for a payment "
+            "provider. Only POST methods are allowed.</h1>",
         )
-        is_charge = event["type"].startswith("charge")
-        is_live = event["livemode"] != settings.DEVELOPMENT
-        if all([is_charge, is_live]):
-            charge = event["data"]["object"]
-
-            handle_external_payment_if_needed(charge)
-            d = get_donation_with_retries(event, charge)
-            return update_donation_for_event(d, event, charge)
-        return HttpResponse("<h1>200: OK</h1>")
-    return HttpResponseNotAllowed(
-        permitted_methods={"POST"},
-        content="<h1>405: This is a callback endpoint for a payment "
-        "provider. Only POST methods are allowed.</h1>",
+    # Stripe hits us with a callback, and their security model is for us
+    # to use the ID from that to hit their API. It's analogous to when you
+    # get a random call and you call them back to make sure it's legit.
+    event_id = json.loads(request.body)["id"]
+    # Now use the API to call back.
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    event = json.loads(str(stripe.Event.retrieve(event_id)))
+    logger.info(
+        f"Stripe callback triggered with event id of {event_id}. See "
+        "webhook documentation for details."
     )
+    is_charge = event["type"].startswith("charge")
+    is_live = event["livemode"] != settings.DEVELOPMENT
+    if all([is_charge, is_live]):
+        charge = event["data"]["object"]
+
+        handle_external_payment_if_needed(charge)
+        d = get_donation_with_retries(event, charge)
+        return update_donation_for_event(d, event, charge)
+    return HttpResponse("<h1>200: OK</h1>")
 
 
 def process_stripe_payment(

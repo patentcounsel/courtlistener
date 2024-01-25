@@ -54,8 +54,7 @@ def generate_annotations(
                 f'<span class="citation" data-id="{opinion.pk}"><a href="{opinion.cluster.get_absolute_url()}">',
                 "</a></span>",
             ]
-        for c in citations:
-            annotations.append([c.span()] + annotation)
+        annotations.extend([c.span()] + annotation for c in citations)
     return annotations
 
 
@@ -72,15 +71,15 @@ def create_cited_html(
     :param citations: A list of citations in the opinion
     :return The new HTML containing citations
     """
-    if opinion.source_is_html:  # If opinion was originally HTML...
-        new_html = annotate_citations(
+    return (
+        annotate_citations(
             plain_text=opinion.cleaned_text,
             annotations=generate_annotations(citation_resolutions),
             source_text=opinion.source_text,
             unbalanced_tags="skip",  # Don't risk overwriting existing tags
         )
-    else:  # Else, present `source_text` wrapped in <pre> HTML tags...
-        new_html = annotate_citations(
+        if opinion.source_is_html
+        else annotate_citations(
             plain_text=opinion.cleaned_text,
             annotations=[
                 [a[0], f"</pre>{a[1]}", f'{a[2]}<pre class="inline">']
@@ -88,6 +87,4 @@ def create_cited_html(
             ],
             source_text=f'<pre class="inline">{html.escape(opinion.source_text)}</pre>',
         )
-
-    # Return the newly-annotated text
-    return new_html
+    )

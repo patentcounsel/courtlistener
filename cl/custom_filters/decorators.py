@@ -48,10 +48,7 @@ def check_honeypot(func=None, field_name=None):
     def decorated(func):
         def inner(request, *args, **kwargs):
             response = verify_honeypot_value(request, field_name)
-            if response:
-                return response
-            else:
-                return func(request, *args, **kwargs)
+            return response if response else func(request, *args, **kwargs)
 
         return wraps(func)(inner)
 
